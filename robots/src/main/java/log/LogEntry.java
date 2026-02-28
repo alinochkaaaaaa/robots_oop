@@ -1,9 +1,11 @@
 package log;
 
+// класс-контейнер для одного сообщения в логе
+
 public class LogEntry
 {
-    private LogLevel m_logLevel;
-    private String m_strMessage;
+    private LogLevel m_logLevel; // уровень важности сообщения
+    private String m_strMessage; // текст сообщения
     
     public LogEntry(LogLevel logLevel, String strMessage)
     {

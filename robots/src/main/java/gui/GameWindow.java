@@ -10,6 +10,7 @@ public class GameWindow extends JInternalFrame
     private final GameVisualizer m_visualizer;
     public GameWindow() 
     {
+        // окно можно закрывать, разворачивать, сворачивать и перемещать
         super("Игровое поле", true, true, true, true);
         m_visualizer = new GameVisualizer();
         JPanel panel = new JPanel(new BorderLayout());

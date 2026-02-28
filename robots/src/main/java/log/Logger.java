@@ -6,6 +6,7 @@ public final class Logger
     static {
         defaultLogSource = new LogWindowSource(100);
     }
+    // создание общего источника логов
     
     private Logger()
     {

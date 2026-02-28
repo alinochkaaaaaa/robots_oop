@@ -25,7 +25,8 @@ import log.Logger;
 public class MainApplicationFrame extends JFrame
 {
     private final JDesktopPane desktopPane = new JDesktopPane();
-    
+    // панель, которая может содержать внутренние окна
+
     public MainApplicationFrame() {
         //Make the big window be indented 50 pixels from each edge
         //of the screen.
@@ -37,10 +38,12 @@ public class MainApplicationFrame extends JFrame
 
         setContentPane(desktopPane);
         
-        
+
+        // окно лога для отображения сообщений
         LogWindow logWindow = createLogWindow();
         addWindow(logWindow);
 
+        // игровое окно с роботом
         GameWindow gameWindow = new GameWindow();
         gameWindow.setSize(400,  400);
         addWindow(gameWindow);

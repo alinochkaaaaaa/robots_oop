@@ -22,19 +22,22 @@ public class GameVisualizer extends JPanel
         Timer timer = new Timer("events generator", true);
         return timer;
     }
-    
+
+    // // Позиция и направление робота
     private volatile double m_robotPositionX = 100;
     private volatile double m_robotPositionY = 100; 
     private volatile double m_robotDirection = 0; 
 
+    // // Позиция цели (куда кликнули мышкой)
     private volatile int m_targetPositionX = 150;
     private volatile int m_targetPositionY = 100;
     
-    private static final double maxVelocity = 0.1; 
-    private static final double maxAngularVelocity = 0.001; 
+    private static final double maxVelocity = 0.1; // максимальная скорость
+    private static final double maxAngularVelocity = 0.001; // максимальная угловая скорость
     
     public GameVisualizer() 
     {
+        // Таймер для перерисовки (каждые 50 мс)
         m_timer.schedule(new TimerTask()
         {
             @Override
@@ -43,6 +46,8 @@ public class GameVisualizer extends JPanel
                 onRedrawEvent();
             }
         }, 0, 50);
+
+        // Таймер для обновления модели (каждые 10 мс)
         m_timer.schedule(new TimerTask()
         {
             @Override
@@ -51,6 +56,8 @@ public class GameVisualizer extends JPanel
                 onModelUpdateEvent();
             }
         }, 0, 10);
+
+        // Обработчик кликов мыши
         addMouseListener(new MouseAdapter()
         {
             @Override
@@ -68,7 +75,8 @@ public class GameVisualizer extends JPanel
         m_targetPositionX = p.x;
         m_targetPositionY = p.y;
     }
-    
+
+    // Просим перерисовать окно (в потоке Swing)
     protected void onRedrawEvent()
     {
         EventQueue.invokeLater(this::repaint);
@@ -88,18 +96,20 @@ public class GameVisualizer extends JPanel
         
         return asNormalizedRadians(Math.atan2(diffY, diffX));
     }
-    
+
+    // Обновление положения робота (вызывается по таймеру)
     protected void onModelUpdateEvent()
     {
         double distance = distance(m_targetPositionX, m_targetPositionY, 
             m_robotPositionX, m_robotPositionY);
         if (distance < 0.5)
         {
-            return;
+            return; // Уже близко к цели
         }
         double velocity = maxVelocity;
         double angleToTarget = angleTo(m_robotPositionX, m_robotPositionY, m_targetPositionX, m_targetPositionY);
         double angularVelocity = 0;
+        // Поворачиваем в сторону цели
         if (angleToTarget > m_robotDirection)
         {
             angularVelocity = maxAngularVelocity;
@@ -120,12 +130,14 @@ public class GameVisualizer extends JPanel
             return max;
         return value;
     }
-    
+
+    // Физика движения робота
     private void moveRobot(double velocity, double angularVelocity, double duration)
     {
         velocity = applyLimits(velocity, 0, maxVelocity);
         angularVelocity = applyLimits(angularVelocity, -maxAngularVelocity, maxAngularVelocity);
-        double newX = m_robotPositionX + velocity / angularVelocity * 
+        // формула движения с учетом поворота
+        double newX = m_robotPositionX + velocity / angularVelocity *
             (Math.sin(m_robotDirection  + angularVelocity * duration) -
                 Math.sin(m_robotDirection));
         if (!Double.isFinite(newX))
@@ -145,6 +157,7 @@ public class GameVisualizer extends JPanel
         m_robotDirection = newDirection;
     }
 
+    // Приведение угла к диапазону [0, 2π]
     private static double asNormalizedRadians(double angle)
     {
         while (angle < 0)
@@ -162,7 +175,8 @@ public class GameVisualizer extends JPanel
     {
         return (int)(value + 0.5);
     }
-    
+
+    // Отрисовка всего содержимого
     @Override
     public void paint(Graphics g)
     {
@@ -181,17 +195,21 @@ public class GameVisualizer extends JPanel
     {
         g.drawOval(centerX - diam1 / 2, centerY - diam2 / 2, diam1, diam2);
     }
-    
+
+    // отображает робота (розовый овал с "глазом") и цель (зеленую точку)
     private void drawRobot(Graphics2D g, int x, int y, double direction)
     {
         int robotCenterX = round(m_robotPositionX); 
         int robotCenterY = round(m_robotPositionY);
+        // Поворачиваем систему координат
         AffineTransform t = AffineTransform.getRotateInstance(direction, robotCenterX, robotCenterY); 
         g.setTransform(t);
+        // Рисуем корпус
         g.setColor(Color.MAGENTA);
         fillOval(g, robotCenterX, robotCenterY, 30, 10);
         g.setColor(Color.BLACK);
         drawOval(g, robotCenterX, robotCenterY, 30, 10);
+        // Рисуем "глаз" (передняя часть)
         g.setColor(Color.WHITE);
         fillOval(g, robotCenterX  + 10, robotCenterY, 5, 5);
         g.setColor(Color.BLACK);
@@ -200,7 +218,8 @@ public class GameVisualizer extends JPanel
     
     private void drawTarget(Graphics2D g, int x, int y)
     {
-        AffineTransform t = AffineTransform.getRotateInstance(0, 0, 0); 
+        // Сбрасываем трансформацию
+        AffineTransform t = AffineTransform.getRotateInstance(0, 0, 0);
         g.setTransform(t);
         g.setColor(Color.GREEN);
         fillOval(g, x, y, 5, 5);
