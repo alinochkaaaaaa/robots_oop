@@ -17,7 +17,7 @@ repositories {
 
 dependencies {
     // Use JUnit Jupiter for testing.
-    testImplementation libs.junit.jupiter
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.1'
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
@@ -37,4 +37,19 @@ application {
 tasks.named('test') {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
+}
+
+tasks.withType(Test) {
+    // Запускать тесты в том же процессе JVM, что и Gradle
+    // Это обходит проблемы с созданием дочерних процессов.
+    forkEvery = 1
+    maxParallelForks = 1
+
+    // Явно указываем использовать ту же JVM, что и для сборки
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+
+    // Добавляем флаг для диагностики, если проблема с памятью
+    jvmArgs += "-Xmx512m"
 }
