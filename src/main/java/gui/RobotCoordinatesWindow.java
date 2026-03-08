@@ -1,110 +1,89 @@
 package gui;
 
 import model.RobotModel;
-
 import javax.swing.*;
 import java.awt.*;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 
-public class RobotCoordinatesWindow extends JInternalFrame implements RobotModel.RobotModelListener
-{
+public class RobotCoordinatesWindow extends JInternalFrame implements PropertyChangeListener {
     private final RobotModel model;
+    private JLabel xCoordLabel;
+    private JLabel yCoordLabel;
+    private JLabel directionLabel;
+    private JLabel targetXLabel;
+    private JLabel targetYLabel;
 
-    private final JLabel xCoordLabel;
-    private final JLabel yCoordLabel;
-    private final JLabel directionLabel;
-    private final JLabel targetXLabel;
-    private final JLabel targetYLabel;
-
-    public RobotCoordinatesWindow(RobotModel model)
-    {
-        this.model = model;
+    public RobotCoordinatesWindow(RobotModel model) {
         super("Координаты робота", true, true, true, true);
-        model.addListener(this);
+        this.model = model;
 
-        setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
+        this.xCoordLabel = createCoordLabel();
+        this.yCoordLabel = createCoordLabel();
+        this.directionLabel = createCoordLabel();
+        this.targetXLabel = createCoordLabel();
+        this.targetYLabel = createCoordLabel();
 
-        // Создаем панель для отображения координат
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createTitledBorder("Текущие координаты"));
+        model.addPropertyChangeListener(this);
 
-        // Заголовки
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        panel.add(new JLabel("Позиция X:"), gbc);
+        JPanel mainPanel = createMainPanel();
+        getContentPane().add(mainPanel);
 
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        xCoordLabel = new JLabel(String.format("%.2f", model.getRobotPositionX()));
-        xCoordLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        panel.add(xCoordLabel, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        panel.add(new JLabel("Позиция Y:"), gbc);
-
-        gbc.gridx = 1;
-        gbc.gridy = 1;
-        yCoordLabel = new JLabel(String.format("%.2f", model.getRobotPositionY()));
-        yCoordLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        panel.add(yCoordLabel, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        panel.add(new JLabel("Направление:"), gbc);
-
-        gbc.gridx = 1;
-        gbc.gridy = 2;
-        directionLabel = new JLabel(String.format("%.2f°", Math.toDegrees(model.getRobotDirection())));
-        directionLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        panel.add(directionLabel, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 3;
-        panel.add(new JLabel("Цель X:"), gbc);
-
-        gbc.gridx = 1;
-        gbc.gridy = 3;
-        targetXLabel = new JLabel(String.valueOf(model.getTargetPositionX()));
-        targetXLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        panel.add(targetXLabel, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 4;
-        panel.add(new JLabel("Цель Y:"), gbc);
-
-        gbc.gridx = 1;
-        gbc.gridy = 4;
-        targetYLabel = new JLabel(String.valueOf(model.getTargetPositionY()));
-        targetYLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        panel.add(targetYLabel, gbc);
-
-        getContentPane().add(panel);
         setSize(250, 200);
         setLocation(320, 10);
     }
 
-    @Override
-    public void onRobotPositionChanged(double x, double y, double direction)
-    {
-        SwingUtilities.invokeLater(() -> {
-            xCoordLabel.setText(String.format("%.2f", x));
-            yCoordLabel.setText(String.format("%.2f", y));
-            directionLabel.setText(String.format("%.2f°", Math.toDegrees(direction)));
+    private JPanel createMainPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createTitledBorder("Текущие координаты"));
 
-            targetXLabel.setText(String.valueOf(model.getTargetPositionX()));
-            targetYLabel.setText(String.valueOf(model.getTargetPositionY()));
-        });
+        GridBagConstraints gbc = createGridBagConstraints();
+
+        addLabelPair(panel, gbc, 0, "Позиция X:", xCoordLabel = createCoordLabel());
+        addLabelPair(panel, gbc, 1, "Позиция Y:", yCoordLabel = createCoordLabel());
+        addLabelPair(panel, gbc, 2, "Направление:", directionLabel = createCoordLabel());
+        addLabelPair(panel, gbc, 3, "Цель X:", targetXLabel = createCoordLabel());
+        addLabelPair(panel, gbc, 4, "Цель Y:", targetYLabel = createCoordLabel());
+
+        updateLabels();
+
+        return panel;
     }
 
-    // метод для обновления цели
-    public void updateTargetPosition(int x, int y)
-    {
-        SwingUtilities.invokeLater(() -> {
-            targetXLabel.setText(String.valueOf(x));
-            targetYLabel.setText(String.valueOf(y));
-        });
+    private GridBagConstraints createGridBagConstraints() {
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.anchor = GridBagConstraints.WEST;
+        return gbc;
+    }
+
+    private JLabel createCoordLabel() {
+        JLabel label = new JLabel();
+        label.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        return label;
+    }
+
+    private void addLabelPair(JPanel panel, GridBagConstraints gbc,
+                              int row, String labelText, JLabel valueLabel) {
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        panel.add(new JLabel(labelText), gbc);
+
+        gbc.gridx = 1;
+        panel.add(valueLabel, gbc);
+    }
+
+    private void updateLabels() {
+        xCoordLabel.setText(String.format("%.2f", model.getRobotPositionX()));
+        yCoordLabel.setText(String.format("%.2f", model.getRobotPositionY()));
+        directionLabel.setText(String.format("%.2f°", Math.toDegrees(model.getRobotDirection())));
+        targetXLabel.setText(String.valueOf(model.getTargetPositionX()));
+        targetYLabel.setText(String.valueOf(model.getTargetPositionY()));
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        // Обновляем UI в потоке EDT
+        SwingUtilities.invokeLater(this::updateLabels);
     }
 }

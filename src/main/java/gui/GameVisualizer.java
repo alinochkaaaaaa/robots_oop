@@ -1,7 +1,8 @@
 package gui;
 
 import model.RobotModel;
-
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.Graphics;
@@ -15,7 +16,7 @@ import java.util.TimerTask;
 
 import javax.swing.JPanel;
 
-public class GameVisualizer extends JPanel implements RobotModel.RobotModelListener
+public class GameVisualizer extends JPanel implements PropertyChangeListener
 {
     private final Timer m_timer = initTimer();
     private final RobotModel model;
@@ -29,9 +30,8 @@ public class GameVisualizer extends JPanel implements RobotModel.RobotModelListe
     public GameVisualizer(RobotModel model)
     {
         this.model = model;
-        model.addListener(this);
+        model.addPropertyChangeListener(this);
 
-        // Таймер для перерисовки (каждые 50 мс)
         m_timer.schedule(new TimerTask()
         {
             @Override
@@ -41,7 +41,6 @@ public class GameVisualizer extends JPanel implements RobotModel.RobotModelListe
             }
         }, 0, 50);
 
-        // Таймер для обновления модели (каждые 10 мс)
         m_timer.schedule(new TimerTask()
         {
             @Override
@@ -51,14 +50,11 @@ public class GameVisualizer extends JPanel implements RobotModel.RobotModelListe
             }
         }, 0, 10);
 
-        // Обработчик кликов мыши
-        addMouseListener(new MouseAdapter()
-        {
+        addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e)
-            {
-                setTargetPosition(e.getPoint());
-                repaint();
+            public void mouseClicked(MouseEvent e) {
+                Point clickPoint = e.getPoint();
+                setTargetPosition(clickPoint);
             }
         });
 
@@ -70,22 +66,19 @@ public class GameVisualizer extends JPanel implements RobotModel.RobotModelListe
         model.setTargetPosition(p.x, p.y);
     }
 
-    // Просим перерисовать окно (в потоке Swing)
     protected void onRedrawEvent()
     {
         EventQueue.invokeLater(this::repaint);
     }
 
-    // Обновление положения робота (вызывается по таймеру)
     protected void onModelUpdateEvent()
     {
         model.updateModel();
     }
-    
+
     @Override
-    public void onRobotPositionChanged(double x, double y, double direction)
-    {
-        // запоминаем, что позиция изменилась - repaint будет вызван по таймеру
+    public void propertyChange(PropertyChangeEvent evt) {
+        repaint();
     }
 
     private static int round(double value)
@@ -93,14 +86,18 @@ public class GameVisualizer extends JPanel implements RobotModel.RobotModelListe
         return (int)(value + 0.5);
     }
 
-    // Отрисовка всего содержимого
     @Override
-    public void paint(Graphics g)
-    {
+    public void paint(Graphics g) {
         super.paint(g);
         Graphics2D g2d = (Graphics2D)g;
-        drawRobot(g2d, round(model.getRobotPositionX()), round(model.getRobotPositionY()), model.getRobotDirection());
-        drawTarget(g2d, model.getTargetPositionX(), model.getTargetPositionY());
+
+        int robotX = round(model.getRobotPositionX());
+        int robotY = round(model.getRobotPositionY());
+        int targetX = model.getTargetPositionX();
+        int targetY = model.getTargetPositionY();
+
+        drawRobot(g2d, robotX, robotY, model.getRobotDirection());
+        drawTarget(g2d, targetX, targetY);
     }
     
     private static void fillOval(Graphics g, int centerX, int centerY, int diam1, int diam2)
@@ -113,34 +110,34 @@ public class GameVisualizer extends JPanel implements RobotModel.RobotModelListe
         g.drawOval(centerX - diam1 / 2, centerY - diam2 / 2, diam1, diam2);
     }
 
-    // отображает робота (розовый овал с "глазом") и цель (зеленую точку)
     private void drawRobot(Graphics2D g, int x, int y, double direction)
     {
         int robotCenterX = round(model.getRobotPositionX());
         int robotCenterY = round(model.getRobotPositionY());
-        // Поворачиваем систему координат
-        AffineTransform t = AffineTransform.getRotateInstance(direction, robotCenterX, robotCenterY); 
+
+        AffineTransform t = AffineTransform.getRotateInstance(direction, robotCenterX, robotCenterY);
         g.setTransform(t);
-        // Рисуем корпус
+
         g.setColor(Color.MAGENTA);
         fillOval(g, robotCenterX, robotCenterY, 30, 10);
         g.setColor(Color.BLACK);
         drawOval(g, robotCenterX, robotCenterY, 30, 10);
-        // Рисуем "глаз" (передняя часть)
         g.setColor(Color.WHITE);
         fillOval(g, robotCenterX  + 10, robotCenterY, 5, 5);
         g.setColor(Color.BLACK);
         drawOval(g, robotCenterX  + 10, robotCenterY, 5, 5);
     }
-    
-    private void drawTarget(Graphics2D g, int x, int y)
-    {
-        // Сбрасываем трансформацию
-        AffineTransform t = AffineTransform.getRotateInstance(0, 0, 0);
-        g.setTransform(t);
+
+    private void drawTarget(Graphics2D g, int x, int y) {
+        AffineTransform old = g.getTransform();
+
+        g.setTransform(new AffineTransform());
+
         g.setColor(Color.GREEN);
         fillOval(g, x, y, 5, 5);
         g.setColor(Color.BLACK);
         drawOval(g, x, y, 5, 5);
+
+        g.setTransform(old);
     }
 }
