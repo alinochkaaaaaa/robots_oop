@@ -30,6 +30,12 @@ public class LogWindowSource {
         LogEntry entry = new LogEntry(logLevel, strMessage); // O(1)
         buffer.add(entry);
         Iterable<LogEntry> segment = getSegment(0, size());
+
+        int count = 0;
+        for (LogEntry e : segment) {
+            count++;
+        }
+        System.out.println("Получено записей из буфера: " + count);
         notifyListeners();
     }
 
