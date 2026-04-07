@@ -29,7 +29,7 @@ public class LogWindowSource {
     public void append(LogLevel logLevel, String strMessage) {
         LogEntry entry = new LogEntry(logLevel, strMessage); // O(1)
         buffer.add(entry);
-        buffer.getSegment(0, buffer.size());
+        Iterable<LogEntry> segment = getSegment(0, size());
         notifyListeners();
     }
 
@@ -50,10 +50,6 @@ public class LogWindowSource {
 
     public int size() {
         return buffer.size();
-    }
-
-    public int capacity() {
-        return buffer.capacity();
     }
 
     /**
