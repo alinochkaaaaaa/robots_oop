@@ -232,4 +232,83 @@ class ConcurrentRingBufferTest {
             assertEquals(expected, snapshot.get(i));
         }
     }
+    @Test
+    @DisplayName("11. getSegment на пустом буфере возвращает пустой сегмент")
+    void testGetSegmentOnEmptyBuffer() {
+        // Буфер пустой, ничего не добавляли
+
+        ConcurrentRingBuffer.RingBufferSnapshot<String> segment = buffer.getSegment(0, 0);
+
+        assertNotNull(segment);
+        assertEquals(0, segment.size());
+        assertEquals(0, segment.totalSize());
+    }
+
+    @Test
+    @DisplayName("12. getSegment возвращает весь буфер при start=0 и end=size")
+    void testGetSegmentEntireBuffer() {
+        // Добавляем элементы
+        for (int i = 0; i < CAPACITY; i++) {
+            buffer.add("Item" + i);
+        }
+
+        ConcurrentRingBuffer.RingBufferSnapshot<String> segment = buffer.getSegment(0, buffer.size());
+
+        assertEquals(CAPACITY, segment.size());
+        assertEquals("Item0", segment.get(0));
+        assertEquals("Item1", segment.get(1));
+        assertEquals("Item2", segment.get(2));
+        assertEquals("Item3", segment.get(3));
+        assertEquals("Item4", segment.get(4));
+    }
+
+    @Test
+    @DisplayName("13. getSegment возвращает корректный сегмент из середины буфера")
+    void testGetSegmentFromMiddle() {
+        // Добавляем 5 элементов
+        for (int i = 0; i < CAPACITY; i++) {
+            buffer.add("Msg" + i);
+        }
+
+        // Берём сегмент с индекса 1 по 4 (элементы 1,2,3)
+        ConcurrentRingBuffer.RingBufferSnapshot<String> segment = buffer.getSegment(1, 4);
+
+        assertEquals(3, segment.size());
+        assertEquals("Msg1", segment.get(0));
+        assertEquals("Msg2", segment.get(1));
+        assertEquals("Msg3", segment.get(2));
+    }
+
+    @Test
+    @DisplayName("14. getSegment возвращает последний элемент при start = size-1, end = size")
+    void testGetSegmentLastElement() {
+        buffer.add("First");
+        buffer.add("Second");
+        buffer.add("Third");
+
+        ConcurrentRingBuffer.RingBufferSnapshot<String> segment = buffer.getSegment(2, 3);
+
+        assertEquals(1, segment.size());
+        assertEquals("Third", segment.get(0));
+    }
+
+    @Test
+    @DisplayName("15. getSegment работает корректно после переполнения буфера")
+    void testGetSegmentAfterOverflow() {
+        // Заполняем буфер с переполнением (добавляем 7 элементов при capacity=5)
+        for (int i = 0; i < CAPACITY + 2; i++) {
+            buffer.add("Element" + i);
+        }
+
+        // В буфере должны быть: Element2, Element3, Element4, Element5, Element6
+        // (Element0 и Element1 перезаписались)
+        ConcurrentRingBuffer.RingBufferSnapshot<String> segment = buffer.getSegment(0, buffer.size());
+
+        assertEquals(CAPACITY, segment.size());
+        assertEquals("Element2", segment.get(0));
+        assertEquals("Element3", segment.get(1));
+        assertEquals("Element4", segment.get(2));
+        assertEquals("Element5", segment.get(3));
+        assertEquals("Element6", segment.get(4));
+    }
 }
