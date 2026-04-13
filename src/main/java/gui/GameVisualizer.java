@@ -1,5 +1,7 @@
 package gui;
 
+import log.Logger;
+import model.MultiRobotModel;
 import model.RobotModel;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -11,41 +13,49 @@ import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
-public class GameVisualizer extends JPanel implements PropertyChangeListener
-{
+public class GameVisualizer extends JPanel implements PropertyChangeListener {
     private final Timer m_timer = initTimer();
-    private final RobotModel model;
+    private final MultiRobotModel multiModel;
+    private RobotModel selectedRobotForTarget = null;
+    private final Map<Integer, Color> robotColors = new HashMap<>();
+    private int nextColorIndex = 0;
+    private final Color[] colors = {
+            Color.MAGENTA, Color.BLUE, Color.RED, Color.ORANGE, Color.CYAN, Color.PINK
+    };
 
-    private static Timer initTimer() 
-    {
-        Timer timer = new Timer("events generator", true);
-        return timer;
+    private static Timer initTimer() {
+        return new Timer("events generator", true);
     }
 
-    public GameVisualizer(RobotModel model)
-    {
-        this.model = model;
-        model.addPropertyChangeListener(this);
+    public GameVisualizer(MultiRobotModel multiModel) {
+        this.multiModel = multiModel;
+        this.multiModel.addPropertyChangeListener(this);
 
-        m_timer.schedule(new TimerTask()
-        {
+        // По умолчанию цель назначается первому роботу
+        if (!multiModel.getRobots().isEmpty()) {
+            selectedRobotForTarget = multiModel.getRobots().get(0);
+            Logger.debug("Выбран робот 1 по умолчанию");
+        }
+
+        m_timer.schedule(new TimerTask() {
             @Override
-            public void run()
-            {
+            public void run() {
                 onRedrawEvent();
             }
         }, 0, 50);
 
-        m_timer.schedule(new TimerTask()
-        {
+        m_timer.schedule(new TimerTask() {
             @Override
-            public void run()
-            {
+            public void run() {
                 onModelUpdateEvent();
             }
         }, 0, 10);
@@ -54,26 +64,67 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener
             @Override
             public void mouseClicked(MouseEvent e) {
                 Point clickPoint = e.getPoint();
-                setTargetPosition(clickPoint);
+
+                if (e.isControlDown()) {
+                    // Ctrl+клик - выбор робота для управления
+                    Logger.debug("Ctrl+клик в точке: " + clickPoint);
+                    selectRobotAtPosition(clickPoint);
+                } else {
+                    // Обычный клик - установка цели для выбранного робота
+                    Logger.debug("Обычный клик в точке: " + clickPoint);
+                    setTargetForSelectedRobot(clickPoint);
+                }
+                repaint();
             }
         });
 
         setDoubleBuffered(true);
     }
 
-    protected void setTargetPosition(Point p)
-    {
-        model.setTargetPosition(p.x, p.y);
+    private void selectRobotAtPosition(Point p) {
+        // Ищем робота под курсором (с запасом 30 пикселей)
+        RobotModel closestRobot = null;
+        double minDistance = 30; // радиус захвата
+
+        for (RobotModel robot : multiModel.getRobots()) {
+            int rx = round(robot.getRobotPositionX());
+            int ry = round(robot.getRobotPositionY());
+            double dist = Math.hypot(p.x - rx, p.y - ry);
+
+            Logger.debug("Проверка робота " + robot.getRobotId() +
+                    " на позиции (" + rx + "," + ry +
+                    "), расстояние: " + dist);
+
+            if (dist < minDistance) {
+                minDistance = dist;
+                closestRobot = robot;
+            }
+        }
+
+        if (closestRobot != null) {
+            selectedRobotForTarget = closestRobot;
+            Logger.debug("Выбран робот " + selectedRobotForTarget.getRobotId());
+        } else {
+            Logger.debug("Робот не найден под курсором");
+        }
     }
 
-    protected void onRedrawEvent()
-    {
+    private void setTargetForSelectedRobot(Point p) {
+        if (selectedRobotForTarget != null) {
+            Logger.debug("Установка цели для робота " + selectedRobotForTarget.getRobotId() +
+                    " в точку (" + p.x + "," + p.y + ")");
+            selectedRobotForTarget.setTargetPosition(p.x, p.y);
+        } else {
+            Logger.debug("Нет выбранного робота");
+        }
+    }
+
+    protected void onRedrawEvent() {
         EventQueue.invokeLater(this::repaint);
     }
 
-    protected void onModelUpdateEvent()
-    {
-        model.updateModel();
+    protected void onModelUpdateEvent() {
+        multiModel.updateAllModels();
     }
 
     @Override
@@ -81,9 +132,13 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener
         repaint();
     }
 
-    private static int round(double value)
-    {
+    private static int round(double value) {
         return (int)(value + 0.5);
+    }
+
+    private Color getRobotColor(int robotId) {
+        return robotColors.computeIfAbsent(robotId,
+                id -> colors[nextColorIndex++ % colors.length]);
     }
 
     @Override
@@ -91,52 +146,113 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener
         super.paint(g);
         Graphics2D g2d = (Graphics2D)g;
 
-        int robotX = round(model.getRobotPositionX());
-        int robotY = round(model.getRobotPositionY());
-        int targetX = model.getTargetPositionX();
-        int targetY = model.getTargetPositionY();
+        // Рисуем цели (чтобы они были под роботами или над - не принципиально)
+        for (RobotModel robot : multiModel.getRobots()) {
+            int targetX = robot.getTargetPositionX();
+            int targetY = robot.getTargetPositionY();
+            drawTarget(g2d, targetX, targetY);
+        }
 
-        drawRobot(g2d, robotX, robotY, model.getRobotDirection());
-        drawTarget(g2d, targetX, targetY);
+        // Рисуем всех роботов
+        for (RobotModel robot : multiModel.getRobots()) {
+            int robotX = round(robot.getRobotPositionX());
+            int robotY = round(robot.getRobotPositionY());
+
+            drawRobot(g2d, robotX, robotY, robot.getRobotDirection(),
+                    getRobotColor(robot.getRobotId()),
+                    robot == selectedRobotForTarget);
+
+            // Рисуем ID робота (без трансформации)
+            drawRobotId(g2d, robotX, robotY, robot.getRobotId());
+        }
+
+        // Рисуем подсказку
+        drawHint(g2d);
     }
-    
-    private static void fillOval(Graphics g, int centerX, int centerY, int diam1, int diam2)
-    {
+
+    private void drawRobotId(Graphics2D g, int x, int y, int id) {
+        AffineTransform old = g.getTransform();
+        g.setTransform(new AffineTransform());
+        g.setColor(Color.BLACK);
+        g.setFont(g.getFont().deriveFont(12f));
+        g.drawString("Робот " + id, x - 25, y - 15);
+        g.setTransform(old);
+    }
+
+    private void drawHint(Graphics2D g) {
+        AffineTransform old = g.getTransform();
+        g.setTransform(new AffineTransform());
+        g.setColor(Color.DARK_GRAY);
+        g.setFont(g.getFont().deriveFont(11f));
+
+        String hint1 = "Клик - установка цели для выбранного робота";
+        String hint2 = "Ctrl+Клик на роботе - выбор робота";
+        String hint3 = "Текущий выбранный робот: " +
+                (selectedRobotForTarget != null ?
+                        selectedRobotForTarget.getRobotId() : "нет");
+
+        g.drawString(hint1, 10, getHeight() - 45);
+        g.drawString(hint2, 10, getHeight() - 30);
+        g.drawString(hint3, 10, getHeight() - 15);
+
+        g.setTransform(old);
+    }
+
+    private static void fillOval(Graphics g, int centerX, int centerY, int diam1, int diam2) {
         g.fillOval(centerX - diam1 / 2, centerY - diam2 / 2, diam1, diam2);
     }
-    
-    private static void drawOval(Graphics g, int centerX, int centerY, int diam1, int diam2)
-    {
+
+    private static void drawOval(Graphics g, int centerX, int centerY, int diam1, int diam2) {
         g.drawOval(centerX - diam1 / 2, centerY - diam2 / 2, diam1, diam2);
     }
 
-    private void drawRobot(Graphics2D g, int x, int y, double direction)
-    {
-        int robotCenterX = round(model.getRobotPositionX());
-        int robotCenterY = round(model.getRobotPositionY());
+    private void drawRobot(Graphics2D g, int x, int y, double direction, Color color, boolean isSelected) {
+        int robotCenterX = x;
+        int robotCenterY = y;
 
+        // Сохраняем текущую трансформацию
+        AffineTransform oldTransform = g.getTransform();
+
+        // Применяем поворот вокруг центра робота
         AffineTransform t = AffineTransform.getRotateInstance(direction, robotCenterX, robotCenterY);
         g.setTransform(t);
 
-        g.setColor(Color.MAGENTA);
+        // Рисуем тело робота
+        g.setColor(color);
         fillOval(g, robotCenterX, robotCenterY, 30, 10);
         g.setColor(Color.BLACK);
         drawOval(g, robotCenterX, robotCenterY, 30, 10);
+
+        // Рисуем "глаз" робота (белая точка)
         g.setColor(Color.WHITE);
-        fillOval(g, robotCenterX  + 10, robotCenterY, 5, 5);
+        fillOval(g, robotCenterX + 10, robotCenterY, 5, 5);
         g.setColor(Color.BLACK);
-        drawOval(g, robotCenterX  + 10, robotCenterY, 5, 5);
+        drawOval(g, robotCenterX + 10, robotCenterY, 5, 5);
+
+        // Восстанавливаем трансформацию
+        g.setTransform(oldTransform);
+
+        // Если робот выбран, рисуем подсветку (без поворота)
+        if (isSelected) {
+            g.setColor(Color.YELLOW);
+            g.setStroke(new java.awt.BasicStroke(3f));
+            drawOval(g, robotCenterX, robotCenterY, 36, 16);
+            g.setStroke(new java.awt.BasicStroke(1f));
+        }
     }
 
     private void drawTarget(Graphics2D g, int x, int y) {
         AffineTransform old = g.getTransform();
-
         g.setTransform(new AffineTransform());
 
         g.setColor(Color.GREEN);
-        fillOval(g, x, y, 5, 5);
+        fillOval(g, x, y, 8, 8);
         g.setColor(Color.BLACK);
-        drawOval(g, x, y, 5, 5);
+        drawOval(g, x, y, 8, 8);
+
+        // Рисуем крестик внутри цели
+        g.drawLine(x - 3, y, x + 3, y);
+        g.drawLine(x, y - 3, x, y + 3);
 
         g.setTransform(old);
     }

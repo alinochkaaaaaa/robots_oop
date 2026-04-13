@@ -1,6 +1,6 @@
 package gui;
 
-import model.RobotModel;
+import model.MultiRobotModel;
 
 import java.awt.Dimension;
 import java.awt.Toolkit;
@@ -28,7 +28,7 @@ import log.Logger;
 public class MainApplicationFrame extends JFrame
 {
     private final JDesktopPane desktopPane = new JDesktopPane();
-    private final RobotModel robotModel = new RobotModel();
+    private final MultiRobotModel multiRobotModel = new MultiRobotModel();
     private RobotCoordinatesWindow coordinatesWindow;
 
     public MainApplicationFrame() {
@@ -68,15 +68,15 @@ public class MainApplicationFrame extends JFrame
     }
 
     private GameWindow createGameWindow() {
-        GameWindow gameWindow = new GameWindow(robotModel);
+        GameWindow gameWindow = new GameWindow(multiRobotModel);
         gameWindow.setSize(400, 400);
         gameWindow.setTitle("Игровое поле");
         return gameWindow;
     }
 
     private RobotCoordinatesWindow createCoordinatesWindow() {
-        coordinatesWindow = new RobotCoordinatesWindow(robotModel);
-        coordinatesWindow.setTitle("Координаты робота");
+        coordinatesWindow = new RobotCoordinatesWindow(multiRobotModel);
+        coordinatesWindow.setTitle("Координаты роботов");
         return coordinatesWindow;
     }
 
@@ -113,6 +113,18 @@ public class MainApplicationFrame extends JFrame
             }
         });
         fileMenu.add(showCoordinatesItem);
+
+        // Добавляем пункт для создания второго робота
+        JMenuItem addRobotItem = new JMenuItem("Добавить робота", KeyEvent.VK_A);
+        addRobotItem.addActionListener(e -> {
+            if (multiRobotModel.getRobotCount() < 2) {
+                multiRobotModel.addRobot();
+                Logger.debug("Добавлен второй робот");
+            } else {
+                Logger.debug("Максимум 2 робота уже создано");
+            }
+        });
+        fileMenu.add(addRobotItem);
 
         fileMenu.addSeparator();
 
