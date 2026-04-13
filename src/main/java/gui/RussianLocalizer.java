@@ -6,7 +6,7 @@ import javax.swing.UIManager;
 public class RussianLocalizer {
 
     public void apply() {
-        Locale.setDefault(Locale.of("ru", "RU"));
+        Locale.setDefault(new Locale("ru", "RU"));
 
         // Диалоги подтверждения
         UIManager.put("OptionPane.yesButtonText", "Да");

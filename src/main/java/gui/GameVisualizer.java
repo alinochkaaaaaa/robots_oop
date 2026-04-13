@@ -13,7 +13,6 @@ import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Timer;
@@ -84,16 +83,18 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
     private void selectRobotAtPosition(Point p) {
         // Ищем робота под курсором (с запасом 30 пикселей)
         RobotModel closestRobot = null;
-        double minDistance = 30; // радиус захвата
+        double minDistance = 60;
+
+        System.out.println("=== ПОИСК РОБОТА ===");
 
         for (RobotModel robot : multiModel.getRobots()) {
-            int rx = round(robot.getRobotPositionX());
-            int ry = round(robot.getRobotPositionY());
+            int rx = (int) robot.getRobotPositionX();
+            int ry = (int) robot.getRobotPositionY();
             double dist = Math.hypot(p.x - rx, p.y - ry);
 
-            Logger.debug("Проверка робота " + robot.getRobotId() +
-                    " на позиции (" + rx + "," + ry +
-                    "), расстояние: " + dist);
+            System.out.println("Робот " + robot.getRobotId() +
+                    " на (" + rx + "," + ry +
+                    "), дистанция: " + (int)dist);
 
             if (dist < minDistance) {
                 minDistance = dist;
@@ -103,9 +104,12 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
 
         if (closestRobot != null) {
             selectedRobotForTarget = closestRobot;
-            Logger.debug("Выбран робот " + selectedRobotForTarget.getRobotId());
+            System.out.println(">>> ВЫБРАН РОБОТ " + selectedRobotForTarget.getRobotId());
+            Logger.debug("ВЫБРАН робот " + selectedRobotForTarget.getRobotId());
+            repaint();
         } else {
-            Logger.debug("Робот не найден под курсором");
+            System.out.println(">>> РОБОТ НЕ НАЙДЕН");
+            Logger.debug("Робот НЕ найден");
         }
     }
 
@@ -115,7 +119,7 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
                     " в точку (" + p.x + "," + p.y + ")");
             selectedRobotForTarget.setTargetPosition(p.x, p.y);
         } else {
-            Logger.debug("Нет выбранного робота");
+            Logger.debug("Нет выбранного робота. Сначала выберите робота через Ctrl+Клик");
         }
     }
 
@@ -155,8 +159,8 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
 
         // Рисуем всех роботов
         for (RobotModel robot : multiModel.getRobots()) {
-            int robotX = round(robot.getRobotPositionX());
-            int robotY = round(robot.getRobotPositionY());
+            int robotX = (int) robot.getRobotPositionX();
+            int robotY = (int) robot.getRobotPositionY();
 
             drawRobot(g2d, robotX, robotY, robot.getRobotDirection(),
                     getRobotColor(robot.getRobotId()),
@@ -166,7 +170,6 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
             drawRobotId(g2d, robotX, robotY, robot.getRobotId());
         }
 
-        // Рисуем подсказку
         drawHint(g2d);
     }
 
@@ -210,10 +213,7 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         int robotCenterX = x;
         int robotCenterY = y;
 
-        // Сохраняем текущую трансформацию
         AffineTransform oldTransform = g.getTransform();
-
-        // Применяем поворот вокруг центра робота
         AffineTransform t = AffineTransform.getRotateInstance(direction, robotCenterX, robotCenterY);
         g.setTransform(t);
 
@@ -231,14 +231,6 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
 
         // Восстанавливаем трансформацию
         g.setTransform(oldTransform);
-
-        // Если робот выбран, рисуем подсветку (без поворота)
-        if (isSelected) {
-            g.setColor(Color.YELLOW);
-            g.setStroke(new java.awt.BasicStroke(3f));
-            drawOval(g, robotCenterX, robotCenterY, 36, 16);
-            g.setStroke(new java.awt.BasicStroke(1f));
-        }
     }
 
     private void drawTarget(Graphics2D g, int x, int y) {

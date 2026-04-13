@@ -33,7 +33,12 @@ public class RobotModel {
 
     public void updateModel() {
         double distance = distanceToTarget();
-        if (Math.abs(distance) < 0.5) {
+
+
+        if (distance < 1.0) {
+            robotPositionX = targetPositionX;
+            robotPositionY = targetPositionY;
+            pcs.firePropertyChange("position", null, this);
             return;
         }
 

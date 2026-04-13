@@ -30,6 +30,8 @@ public class MainApplicationFrame extends JFrame
     private final JDesktopPane desktopPane = new JDesktopPane();
     private final MultiRobotModel multiRobotModel = new MultiRobotModel();
     private RobotCoordinatesWindow coordinatesWindow;
+    private LogWindow logWindow;
+    private GameWindow gameWindow;
 
     public MainApplicationFrame() {
         configureMainFrame();
@@ -51,9 +53,18 @@ public class MainApplicationFrame extends JFrame
     }
 
     private void createWindows() {
-        addWindow(createLogWindow());
-        addWindow(createGameWindow());
-        addWindow(createCoordinatesWindow());
+        logWindow = createLogWindow();
+        gameWindow = createGameWindow();
+        coordinatesWindow = createCoordinatesWindow();
+
+        addWindow(logWindow);
+        addWindow(gameWindow);
+        addWindow(coordinatesWindow);
+
+        // Устанавливаем порядок слоёв окон
+        desktopPane.setComponentZOrder(logWindow, 2);
+        desktopPane.setComponentZOrder(gameWindow, 1);
+        desktopPane.setComponentZOrder(coordinatesWindow, 0);
     }
 
     private LogWindow createLogWindow() {
@@ -61,21 +72,26 @@ public class MainApplicationFrame extends JFrame
         logWindow.setLocation(10, 10);
         logWindow.setSize(300, 800);
         logWindow.setTitle("Протокол работы");
-        logWindow.setMinimumSize(logWindow.getSize());
-        logWindow.pack();
-        Logger.debug("Протокол работает");
+        logWindow.setResizable(true);
+        logWindow.setClosable(true);
+        logWindow.setIconifiable(true);
+        logWindow.setMaximizable(true);
         return logWindow;
     }
 
     private GameWindow createGameWindow() {
         GameWindow gameWindow = new GameWindow(multiRobotModel);
-        gameWindow.setSize(400, 400);
+        gameWindow.setSize(600, 500);
+        gameWindow.setLocation(320, 10);
         gameWindow.setTitle("Игровое поле");
+        gameWindow.setDoubleBuffered(true);
         return gameWindow;
     }
 
     private RobotCoordinatesWindow createCoordinatesWindow() {
-        coordinatesWindow = new RobotCoordinatesWindow(multiRobotModel);
+        RobotCoordinatesWindow coordinatesWindow = new RobotCoordinatesWindow(multiRobotModel);
+        coordinatesWindow.setLocation(650, 10);
+        coordinatesWindow.setSize(300, 400);
         coordinatesWindow.setTitle("Координаты роботов");
         return coordinatesWindow;
     }
@@ -83,6 +99,7 @@ public class MainApplicationFrame extends JFrame
     private void addWindow(JInternalFrame frame) {
         desktopPane.add(frame);
         frame.setVisible(true);
+        frame.getContentPane().setBackground(UIManager.getColor("desktop"));
     }
 
     private void setupExitHandler() {
@@ -114,7 +131,6 @@ public class MainApplicationFrame extends JFrame
         });
         fileMenu.add(showCoordinatesItem);
 
-        // Добавляем пункт для создания второго робота
         JMenuItem addRobotItem = new JMenuItem("Добавить робота", KeyEvent.VK_A);
         addRobotItem.addActionListener(e -> {
             if (multiRobotModel.getRobotCount() < 2) {

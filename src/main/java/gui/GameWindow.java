@@ -18,7 +18,6 @@ public class GameWindow extends JInternalFrame {
         getContentPane().add(panel);
         pack();
 
-        // Добавляем подсказку
         m_visualizer.setToolTipText("Клик - установка цели для выбранного робота. Ctrl+Клик - выбор робота.");
     }
 }

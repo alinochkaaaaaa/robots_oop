@@ -13,6 +13,8 @@ public class RobotCoordinatesWindow extends JInternalFrame implements PropertyCh
     private final MultiRobotModel multiModel;
     private final Map<Integer, JPanel> robotPanels = new HashMap<>();
     private final JPanel mainPanel;
+    private volatile boolean needsUpdate = false;
+    private int lastRobotCount = 0;
 
     public RobotCoordinatesWindow(MultiRobotModel multiModel) {
         super("Координаты роботов", true, true, true, true);
@@ -33,18 +35,26 @@ public class RobotCoordinatesWindow extends JInternalFrame implements PropertyCh
     }
 
     private void updateRobotPanels() {
-        mainPanel.removeAll();
-        robotPanels.clear();
+        int currentRobotCount = multiModel.getRobotCount();
 
-        for (RobotModel robot : multiModel.getRobots()) {
-            JPanel robotPanel = createRobotPanel(robot);
-            robotPanels.put(robot.getRobotId(), robotPanel);
-            mainPanel.add(robotPanel);
-            mainPanel.add(Box.createVerticalStrut(10));
+        // Обновляем только если количество роботов изменилось
+        if (currentRobotCount != lastRobotCount) {
+            lastRobotCount = currentRobotCount;
+            SwingUtilities.invokeLater(() -> {
+                mainPanel.removeAll();
+                robotPanels.clear();
+
+                for (RobotModel robot : multiModel.getRobots()) {
+                    JPanel robotPanel = createRobotPanel(robot);
+                    robotPanels.put(robot.getRobotId(), robotPanel);
+                    mainPanel.add(robotPanel);
+                    mainPanel.add(Box.createVerticalStrut(10));
+                }
+
+                mainPanel.revalidate();
+                mainPanel.repaint();
+            });
         }
-
-        mainPanel.revalidate();
-        mainPanel.repaint();
     }
 
     private JPanel createRobotPanel(RobotModel robot) {
@@ -101,6 +111,15 @@ public class RobotCoordinatesWindow extends JInternalFrame implements PropertyCh
 
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
-        SwingUtilities.invokeLater(this::updateRobotPanels);
+        // Обновляем только при изменении списка роботов
+        if (evt.getPropertyName().equals("robots")) {
+            if (!needsUpdate) {
+                needsUpdate = true;
+                SwingUtilities.invokeLater(() -> {
+                    updateRobotPanels();
+                    needsUpdate = false;
+                });
+            }
+        }
     }
 }

@@ -4,11 +4,13 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class MultiRobotModel {
-    private final List<RobotModel> robots = new ArrayList<>();
+    private final List<RobotModel> robots = new CopyOnWriteArrayList<>(); // Потокобезопасный список
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private int nextRobotId = 1;
+    private volatile boolean isUpdating = false;
 
     public MultiRobotModel() {
         // Первый робот создается автоматически
@@ -21,8 +23,12 @@ public class MultiRobotModel {
 
         // Добавляем слушателя для пересылки событий
         newRobot.addPropertyChangeListener(evt -> {
-            pcs.firePropertyChange("robot_" + newRobot.getRobotId(), null, newRobot);
-            pcs.firePropertyChange("robots", null, robots);
+            if (!isUpdating) {
+                isUpdating = true;
+                pcs.firePropertyChange("robot_" + newRobot.getRobotId(), null, newRobot);
+                pcs.firePropertyChange("robots", null, robots);
+                isUpdating = false;
+            }
         });
 
         robots.add(newRobot);
