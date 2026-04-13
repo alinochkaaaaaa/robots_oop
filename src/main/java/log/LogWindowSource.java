@@ -3,68 +3,74 @@ package log;
 import java.util.*;
 
 public class LogWindowSource {
-    private final int m_iQueueLength;
-    private final Queue<LogEntry> m_messages; // Queue вместо List
-    private final List<LogChangeListener> m_listeners;
-    private volatile LogChangeListener[] m_activeListeners;
+    private final ConcurrentRingBuffer<LogEntry> buffer;
+    private final List<LogChangeListener> listeners;
+    private volatile LogChangeListener[] activeListeners;
 
-    public LogWindowSource(int iQueueLength) {
-        m_iQueueLength = iQueueLength;
-        m_messages = new LinkedList<>(); // LinkedList как очередь
-        m_listeners = new ArrayList<>();
+    public LogWindowSource(int queueLength) {
+        this.buffer = new ConcurrentRingBuffer<>(queueLength);
+        this.listeners = new ArrayList<>();
     }
 
     public void registerListener(LogChangeListener listener) {
-        synchronized(m_listeners) {
-            m_listeners.add(listener);
-            m_activeListeners = null;
+        synchronized(listeners) {
+            listeners.add(listener);
+            activeListeners = null;
         }
     }
 
     public void unregisterListener(LogChangeListener listener) {
-        synchronized(m_listeners) {
-            m_listeners.remove(listener);
-            m_activeListeners = null;
+        synchronized(listeners) {
+            listeners.remove(listener);
+            activeListeners = null;
         }
     }
 
     public void append(LogLevel logLevel, String strMessage) {
-        synchronized(m_messages) {
-            LogEntry entry = new LogEntry(logLevel, strMessage);
-            m_messages.add(entry);
+        LogEntry entry = new LogEntry(logLevel, strMessage); // O(1)
+        buffer.add(entry);
+        Iterable<LogEntry> segment = getSegment(0, size());
 
-            while (m_messages.size() > m_iQueueLength) {
-                m_messages.poll(); // Удаляем самое старое сообщение
-            }
+        int count = 0;
+        for (LogEntry e : segment) {
+            count++;
         }
-
+        System.out.println("Получено записей из буфера: " + count);
         notifyListeners();
     }
 
     private void notifyListeners() {
-        LogChangeListener[] activeListeners = m_activeListeners;
-        if (activeListeners == null) {
-            synchronized (m_listeners) {
-                if (m_activeListeners == null) {
-                    activeListeners = m_listeners.toArray(new LogChangeListener[0]);
-                    m_activeListeners = activeListeners;
+        LogChangeListener[] active = activeListeners;
+        if (active == null) {
+            synchronized (listeners) {
+                if (activeListeners == null) {
+                    activeListeners = listeners.toArray(new LogChangeListener[0]);
+                    active = activeListeners;
                 }
             }
         }
-        for (LogChangeListener listener : activeListeners) {
+        for (LogChangeListener listener : active) {
             listener.onLogChanged();
         }
     }
 
     public int size() {
-        synchronized(m_messages) {
-            return m_messages.size();
-        }
+        return buffer.size();
     }
 
+    /**
+     * Получить сегмент записей (для эффективной отрисовки окна).
+     */
+    public Iterable<LogEntry> getSegment(int startIndex, int endIndex) {
+        ConcurrentRingBuffer.RingBufferSnapshot<LogEntry> snapshot =
+                buffer.getSegment(startIndex, endIndex);
+        return snapshot;
+    }
+
+    /**
+     * Получить все записи.
+     */
     public Iterable<LogEntry> all() {
-        synchronized(m_messages) {
-            return new ArrayList<>(m_messages);
-        }
+        return buffer.getAll();
     }
 }

@@ -1,52 +1,60 @@
 package gui;
 
-import java.awt.BorderLayout;
-import java.awt.EventQueue;
-import java.awt.TextArea;
-
-import javax.swing.JInternalFrame;
-import javax.swing.JPanel;
-
 import log.LogChangeListener;
 import log.LogEntry;
 import log.LogWindowSource;
+import javax.swing.*;
+import java.awt.*;
 
-public class LogWindow extends JInternalFrame implements LogChangeListener
-{
-    private LogWindowSource m_logSource; // источник логов
-    private TextArea m_logContent; // текстовое поле для отображения
+public class LogWindow extends JInternalFrame implements LogChangeListener {
+    private final LogWindowSource logSource;
+    private final JTextArea logContent;
+    private final JScrollPane scrollPane;
+    private boolean autoScroll = true; // автоскролл вниз при новых сообщениях
+    private volatile boolean needsUpdate = false;
 
-    public LogWindow(LogWindowSource logSource) 
-    {
+    public LogWindow(LogWindowSource logSource) {
         super("Протокол работы", true, true, true, true);
-        m_logSource = logSource;
-        m_logSource.registerListener(this); // подписываемся на изменения
-        m_logContent = new TextArea("");
-        m_logContent.setSize(200, 500);
-        
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(m_logContent, BorderLayout.CENTER);
-        getContentPane().add(panel);
-        pack();
+        this.logSource = logSource;
+        this.logSource.registerListener(this);
+
+        logContent = new JTextArea();
+        logContent.setEditable(false);
+        logContent.setFont(new Font("Monospaced", Font.PLAIN, 12));
+
+        scrollPane = new JScrollPane(logContent);
+        scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> {
+            // Определяем, хочет ли пользователь автоскролл
+            if (!e.getValueIsAdjusting()) {
+                JScrollBar scrollBar = (JScrollBar) e.getSource();
+                autoScroll = scrollBar.getValue() + scrollBar.getVisibleAmount()
+                        >= scrollBar.getMaximum();
+            }
+        });
+
+        getContentPane().add(scrollPane, BorderLayout.CENTER);
+        setSize(300, 500);
         updateLogContent();
     }
 
-    // Обновление текста в окне
-    private void updateLogContent()
-    {
+    private void updateLogContent() {
         StringBuilder content = new StringBuilder();
-        for (LogEntry entry : m_logSource.all())
-        {
+        for (LogEntry entry : logSource.all()) {
             content.append(entry.getMessage()).append("\n");
         }
-        m_logContent.setText(content.toString());
-        m_logContent.invalidate();
+
+        SwingUtilities.invokeLater(() -> {
+            logContent.setText(content.toString());
+            if (autoScroll) {
+                JScrollBar vertical = scrollPane.getVerticalScrollBar();
+                vertical.setValue(vertical.getMaximum());
+            }
+        });
     }
 
-    // Вызывается при добавлении нового сообщения в лог
     @Override
-    public void onLogChanged()
-    {
-        EventQueue.invokeLater(this::updateLogContent);
+    public void onLogChanged() {
+        // Можно сделать инкрементальное обновление для больших логов
+        SwingUtilities.invokeLater(this::updateLogContent);
     }
 }
