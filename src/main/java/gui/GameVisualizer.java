@@ -10,6 +10,8 @@ import java.awt.EventQueue;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
@@ -19,7 +21,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 
 public class GameVisualizer extends JPanel implements PropertyChangeListener {
     private final Timer m_timer = initTimer();
@@ -31,6 +32,8 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
             Color.MAGENTA, Color.BLUE, Color.RED, Color.ORANGE, Color.CYAN, Color.PINK
     };
 
+    private volatile boolean needsRepaint = false;
+
     private static Timer initTimer() {
         return new Timer("events generator", true);
     }
@@ -39,7 +42,6 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         this.multiModel = multiModel;
         this.multiModel.addPropertyChangeListener(this);
 
-        // По умолчанию цель назначается первому роботу
         if (!multiModel.getRobots().isEmpty()) {
             selectedRobotForTarget = multiModel.getRobots().get(0);
             Logger.debug("Выбран робот 1 по умолчанию");
@@ -48,68 +50,79 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         m_timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                onRedrawEvent();
+                if (needsRepaint) {
+                    EventQueue.invokeLater(() -> {
+                        repaint();
+                        needsRepaint = false;
+                    });
+                }
             }
-        }, 0, 50);
+        }, 0, 33);
 
         m_timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                onModelUpdateEvent();
+                multiModel.updateAllModels();
             }
-        }, 0, 10);
+        }, 0, 16);
 
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 Point clickPoint = e.getPoint();
-
-                if (e.isControlDown()) {
-                    // Ctrl+клик - выбор робота для управления
-                    Logger.debug("Ctrl+клик в точке: " + clickPoint);
-                    selectRobotAtPosition(clickPoint);
-                } else {
-                    // Обычный клик - установка цели для выбранного робота
-                    Logger.debug("Обычный клик в точке: " + clickPoint);
-                    setTargetForSelectedRobot(clickPoint);
-                }
+                Logger.debug("Клик в точке: " + clickPoint);
+                setTargetForSelectedRobot(clickPoint);
                 repaint();
             }
         });
 
+        // Обработка клавиатуры для смены робота (только цифры 1 и 2)
+        setFocusable(true); // фокус клавиатуры
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                handleKeyPress(e);
+            }
+        });
+
         setDoubleBuffered(true);
+        setBackground(Color.WHITE);
     }
 
-    private void selectRobotAtPosition(Point p) {
-        // Ищем робота под курсором (с запасом 30 пикселей)
-        RobotModel closestRobot = null;
-        double minDistance = 60;
+    /**
+     * Обработка нажатий клавиш для смены выбранного робота.
+     * Поддерживаются только клавиши 1 и 2
+     */
+    private void handleKeyPress(KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        int robotCount = multiModel.getRobotCount();
 
-        System.out.println("=== ПОИСК РОБОТА ===");
+        if (robotCount == 0) return;
 
-        for (RobotModel robot : multiModel.getRobots()) {
-            int rx = (int) robot.getRobotPositionX();
-            int ry = (int) robot.getRobotPositionY();
-            double dist = Math.hypot(p.x - rx, p.y - ry);
+        RobotModel newSelectedRobot = null;
 
-            System.out.println("Робот " + robot.getRobotId() +
-                    " на (" + rx + "," + ry +
-                    "), дистанция: " + (int)dist);
-
-            if (dist < minDistance) {
-                minDistance = dist;
-                closestRobot = robot;
+        // Клавиша 1 - выбор первого робота
+        if (keyCode == KeyEvent.VK_1) {
+            if (robotCount >= 1) {
+                newSelectedRobot = multiModel.getRobot(0);
+                Logger.debug("Выбран робот 1");
+            }
+        }
+        // Клавиша 2 - выбор второго робота (если существует)
+        else if (keyCode == KeyEvent.VK_2) {
+            if (robotCount >= 2) {
+                newSelectedRobot = multiModel.getRobot(1);
+                Logger.debug("Выбран робот 2");
+            } else {
+                Logger.debug("Робот 2 не существует");
             }
         }
 
-        if (closestRobot != null) {
-            selectedRobotForTarget = closestRobot;
-            System.out.println(">>> ВЫБРАН РОБОТ " + selectedRobotForTarget.getRobotId());
-            Logger.debug("ВЫБРАН робот " + selectedRobotForTarget.getRobotId());
+        if (newSelectedRobot != null && newSelectedRobot != selectedRobotForTarget) {
+            selectedRobotForTarget = newSelectedRobot;
             repaint();
-        } else {
-            System.out.println(">>> РОБОТ НЕ НАЙДЕН");
-            Logger.debug("Робот НЕ найден");
+            // фокус для продолжения ввода с клавиатуры
+            requestFocusInWindow();
         }
     }
 
@@ -119,30 +132,18 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
                     " в точку (" + p.x + "," + p.y + ")");
             selectedRobotForTarget.setTargetPosition(p.x, p.y);
         } else {
-            Logger.debug("Нет выбранного робота. Сначала выберите робота через Ctrl+Клик");
+            Logger.debug("Нет выбранного робота");
         }
-    }
-
-    protected void onRedrawEvent() {
-        EventQueue.invokeLater(this::repaint);
-    }
-
-    protected void onModelUpdateEvent() {
-        multiModel.updateAllModels();
     }
 
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
-        repaint();
-    }
-
-    private static int round(double value) {
-        return (int)(value + 0.5);
+        needsRepaint = true;
     }
 
     private Color getRobotColor(int robotId) {
         return robotColors.computeIfAbsent(robotId,
-                id -> colors[nextColorIndex++ % colors.length]);
+                _ -> colors[nextColorIndex++ % colors.length]);
     }
 
     @Override
@@ -150,14 +151,15 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         super.paint(g);
         Graphics2D g2d = (Graphics2D)g;
 
-        // Рисуем цели (чтобы они были под роботами или над - не принципиально)
+        g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+
         for (RobotModel robot : multiModel.getRobots()) {
             int targetX = robot.getTargetPositionX();
             int targetY = robot.getTargetPositionY();
             drawTarget(g2d, targetX, targetY);
         }
 
-        // Рисуем всех роботов
         for (RobotModel robot : multiModel.getRobots()) {
             int robotX = (int) robot.getRobotPositionX();
             int robotY = (int) robot.getRobotPositionY();
@@ -166,7 +168,6 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
                     getRobotColor(robot.getRobotId()),
                     robot == selectedRobotForTarget);
 
-            // Рисуем ID робота (без трансформации)
             drawRobotId(g2d, robotX, robotY, robot.getRobotId());
         }
 
@@ -189,7 +190,7 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g.setFont(g.getFont().deriveFont(11f));
 
         String hint1 = "Клик - установка цели для выбранного робота";
-        String hint2 = "Ctrl+Клик на роботе - выбор робота";
+        String hint2 = "Клавиши 1 и 2 - выбор робота";
         String hint3 = "Текущий выбранный робот: " +
                 (selectedRobotForTarget != null ?
                         selectedRobotForTarget.getRobotId() : "нет");
@@ -217,19 +218,21 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         AffineTransform t = AffineTransform.getRotateInstance(direction, robotCenterX, robotCenterY);
         g.setTransform(t);
 
-        // Рисуем тело робота
         g.setColor(color);
         fillOval(g, robotCenterX, robotCenterY, 30, 10);
         g.setColor(Color.BLACK);
         drawOval(g, robotCenterX, robotCenterY, 30, 10);
 
-        // Рисуем "глаз" робота (белая точка)
         g.setColor(Color.WHITE);
         fillOval(g, robotCenterX + 10, robotCenterY, 5, 5);
         g.setColor(Color.BLACK);
         drawOval(g, robotCenterX + 10, robotCenterY, 5, 5);
 
-        // Восстанавливаем трансформацию
+        if (isSelected) {
+            g.setColor(new Color(255, 255, 0, 100));
+            fillOval(g, robotCenterX, robotCenterY, 40, 40);
+        }
+
         g.setTransform(oldTransform);
     }
 
@@ -238,13 +241,12 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g.setTransform(new AffineTransform());
 
         g.setColor(Color.GREEN);
-        fillOval(g, x, y, 8, 8);
+        fillOval(g, x, y, 10, 10);
         g.setColor(Color.BLACK);
-        drawOval(g, x, y, 8, 8);
+        drawOval(g, x, y, 10, 10);
 
-        // Рисуем крестик внутри цели
-        g.drawLine(x - 3, y, x + 3, y);
-        g.drawLine(x, y - 3, x, y + 3);
+        g.drawLine(x - 4, y, x + 4, y);
+        g.drawLine(x, y - 4, x, y + 4);
 
         g.setTransform(old);
     }

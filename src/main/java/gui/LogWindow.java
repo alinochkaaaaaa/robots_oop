@@ -11,7 +11,7 @@ public class LogWindow extends JInternalFrame implements LogChangeListener {
     private final JTextArea logContent;
     private boolean autoScroll = true;
     private volatile boolean needsUpdate = false;
-    private String cachedContent = "";
+    private int lastHash = 0;  // хэш
 
     public LogWindow(LogWindowSource logSource) {
         super("Протокол работы", true, true, true, true);
@@ -24,7 +24,6 @@ public class LogWindow extends JInternalFrame implements LogChangeListener {
 
         JScrollPane scrollPane = new JScrollPane(logContent);
         scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> {
-            // Определяем, хочет ли пользователь автоскролл
             if (!e.getValueIsAdjusting()) {
                 JScrollBar scrollBar = (JScrollBar) e.getSource();
                 autoScroll = scrollBar.getValue() + scrollBar.getVisibleAmount()
@@ -44,12 +43,13 @@ public class LogWindow extends JInternalFrame implements LogChangeListener {
             content.append(entry.getMessage()).append("\n");
         }
         String newContent = content.toString();
+        int newHash = newContent.hashCode();
 
-        // Обновляем только если содержимое изменилось
-        if (!newContent.equals(cachedContent)) {
-            cachedContent = newContent;
+        // Обновляем только если хэш изменился
+        if (newHash != lastHash) {
+            lastHash = newHash;
             SwingUtilities.invokeLater(() -> {
-                logContent.setText(cachedContent);
+                logContent.setText(newContent);
                 if (autoScroll) {
                     JScrollBar vertical = ((JScrollPane) logContent.getParent().getParent()).getVerticalScrollBar();
                     vertical.setValue(vertical.getMaximum());
