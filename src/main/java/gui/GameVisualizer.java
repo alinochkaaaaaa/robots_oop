@@ -5,6 +5,7 @@ import model.MultiRobotModel;
 import model.RobotModel;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.awt.RenderingHints;
 import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.Graphics;
@@ -120,6 +121,7 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
 
         if (newSelectedRobot != null && newSelectedRobot != selectedRobotForTarget) {
             selectedRobotForTarget = newSelectedRobot;
+            System.out.println(">>> ВЫБРАН РОБОТ " + selectedRobotForTarget.getRobotId());
             repaint();
             // фокус для продолжения ввода с клавиатуры
             requestFocusInWindow();
