@@ -19,7 +19,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
-
+import model.RobotModelWrapper;
+import plugin.RobotInstance;
 import javax.swing.JPanel;
 
 public class GameVisualizer extends JPanel implements PropertyChangeListener {
@@ -154,19 +155,28 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
                 java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
 
+        // Рисуем цели (без изменений)
         for (RobotModel robot : multiModel.getRobots()) {
-            int targetX = robot.getTargetPositionX();
-            int targetY = robot.getTargetPositionY();
-            drawTarget(g2d, targetX, targetY);
+            drawTarget(g2d, robot.getTargetPositionX(), robot.getTargetPositionY());
         }
 
+        // Рисуем роботов
         for (RobotModel robot : multiModel.getRobots()) {
             int robotX = (int) robot.getRobotPositionX();
             int robotY = (int) robot.getRobotPositionY();
 
-            drawRobot(g2d, robotX, robotY, robot.getRobotDirection(),
-                    getRobotColor(robot.getRobotId()),
-                    robot == selectedRobotForTarget);
+            boolean isSelected = (robot == selectedRobotForTarget);
+
+            // ПРОВЕРКА: если это загруженный робот
+            if (robot instanceof RobotModelWrapper) {
+                RobotModelWrapper wrapper = (RobotModelWrapper) robot;
+                RobotInstance instance = wrapper.getPluginInstance();
+                instance.draw(g2d, robotX, robotY, isSelected);
+            } else {
+                // Стандартный робот — старая отрисовка
+                drawRobot(g2d, robotX, robotY, robot.getRobotDirection(),
+                        getRobotColor(robot.getRobotId()), isSelected);
+            }
 
             drawRobotId(g2d, robotX, robotY, robot.getRobotId());
         }

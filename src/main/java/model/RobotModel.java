@@ -99,4 +99,8 @@ public class RobotModel {
     public void removePropertyChangeListener(PropertyChangeListener listener) {
         pcs.removePropertyChangeListener(listener);
     }
+    public void setPosition(double x, double y) {
+        this.robotPositionX = x;
+        this.robotPositionY = y;
+    }
 }
