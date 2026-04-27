@@ -9,9 +9,9 @@ import java.awt.*;
 public class LogWindow extends JInternalFrame implements LogChangeListener {
     private final LogWindowSource logSource;
     private final JTextArea logContent;
-    private final JScrollPane scrollPane;
-    private boolean autoScroll = true; // автоскролл вниз при новых сообщениях
+    private boolean autoScroll = true;
     private volatile boolean needsUpdate = false;
+    private int lastHash = 0;  // хэш
 
     public LogWindow(LogWindowSource logSource) {
         super("Протокол работы", true, true, true, true);
@@ -22,9 +22,8 @@ public class LogWindow extends JInternalFrame implements LogChangeListener {
         logContent.setEditable(false);
         logContent.setFont(new Font("Monospaced", Font.PLAIN, 12));
 
-        scrollPane = new JScrollPane(logContent);
+        JScrollPane scrollPane = new JScrollPane(logContent);
         scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> {
-            // Определяем, хочет ли пользователь автоскролл
             if (!e.getValueIsAdjusting()) {
                 JScrollBar scrollBar = (JScrollBar) e.getSource();
                 autoScroll = scrollBar.getValue() + scrollBar.getVisibleAmount()
@@ -34,6 +33,7 @@ public class LogWindow extends JInternalFrame implements LogChangeListener {
 
         getContentPane().add(scrollPane, BorderLayout.CENTER);
         setSize(300, 500);
+
         updateLogContent();
     }
 
@@ -42,19 +42,30 @@ public class LogWindow extends JInternalFrame implements LogChangeListener {
         for (LogEntry entry : logSource.all()) {
             content.append(entry.getMessage()).append("\n");
         }
+        String newContent = content.toString();
+        int newHash = newContent.hashCode();
 
-        SwingUtilities.invokeLater(() -> {
-            logContent.setText(content.toString());
-            if (autoScroll) {
-                JScrollBar vertical = scrollPane.getVerticalScrollBar();
-                vertical.setValue(vertical.getMaximum());
-            }
-        });
+        // Обновляем только если хэш изменился
+        if (newHash != lastHash) {
+            lastHash = newHash;
+            SwingUtilities.invokeLater(() -> {
+                logContent.setText(newContent);
+                if (autoScroll) {
+                    JScrollBar vertical = ((JScrollPane) logContent.getParent().getParent()).getVerticalScrollBar();
+                    vertical.setValue(vertical.getMaximum());
+                }
+            });
+        }
     }
 
     @Override
     public void onLogChanged() {
-        // Можно сделать инкрементальное обновление для больших логов
-        SwingUtilities.invokeLater(this::updateLogContent);
+        if (!needsUpdate) {
+            needsUpdate = true;
+            SwingUtilities.invokeLater(() -> {
+                updateLogContent();
+                needsUpdate = false;
+            });
+        }
     }
 }
