@@ -56,6 +56,7 @@ public class RobotModelWrapper extends RobotModel {
     @Override
     public void updateModel() {
         instance.update(cachedTargetX, cachedTargetY);
+
         if (!isUpdatingFromInstance) {
             isUpdatingFromInstance = true;
             pcs.firePropertyChange("position", null, this);
