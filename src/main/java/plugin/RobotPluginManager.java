@@ -9,6 +9,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
@@ -144,10 +145,10 @@ public class RobotPluginManager {
         // Открываем JAR и сканируем все entry
         try (JarFile jarFile = new JarFile(new File(jarPath))) {
 
-            java.util.Enumeration<java.util.jar.JarEntry> entries = jarFile.entries();
+            Enumeration<JarEntry> entries = jarFile.entries();
 
             while (entries.hasMoreElements()) {
-                java.util.jar.JarEntry entry = entries.nextElement();
+                JarEntry entry = entries.nextElement();
                 String entryName = entry.getName();
 
                 // Ищем .class файлы

@@ -10,15 +10,15 @@ public class RobotModelWrapper extends RobotModel {
     private final String pluginTypeId;
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private volatile boolean isUpdatingFromInstance = false;
-    private int cachedTargetX;
-    private int cachedTargetY;
+    private double cachedTargetX;
+    private double cachedTargetY;
 
     public RobotModelWrapper(RobotInstance instance, String pluginTypeId, int robotId) {
         this.instance = instance;
         this.pluginTypeId = pluginTypeId;
         setRobotId(robotId);
-        this.cachedTargetX = (int) instance.getX();
-        this.cachedTargetY = (int) instance.getY();
+        this.cachedTargetX = instance.getX();
+        this.cachedTargetY = instance.getY();
     }
 
     @Override
@@ -38,24 +38,24 @@ public class RobotModelWrapper extends RobotModel {
 
     @Override
     public void setTargetPosition(int x, int y) {
-        this.cachedTargetX = x;
+        this.cachedTargetX = x;   // int автоматически преобразуется в double
         this.cachedTargetY = y;
         pcs.firePropertyChange("target", null, this);
     }
 
     @Override
     public int getTargetPositionX() {
-        return cachedTargetX;
+        return (int) Math.round(cachedTargetX);   // округление при возврате
     }
 
     @Override
     public int getTargetPositionY() {
-        return cachedTargetY;
+        return (int) Math.round(cachedTargetY);
     }
 
     @Override
     public void updateModel() {
-        instance.update(cachedTargetX, cachedTargetY);
+        instance.update(cachedTargetX, cachedTargetY);  // теперь передаём double
 
         if (!isUpdatingFromInstance) {
             isUpdatingFromInstance = true;

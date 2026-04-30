@@ -30,6 +30,7 @@ java {
 }
 
 application {
+    mainClass = 'gui.RobotsProgram'
     applicationDefaultJvmArgs = ["-Dsun.java2d.uiScale=1.0"]
 }
 
