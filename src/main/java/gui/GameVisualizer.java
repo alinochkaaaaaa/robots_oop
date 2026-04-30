@@ -20,7 +20,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
-
+import model.RobotModelWrapper;
+import plugin.RobotInstance;
 import javax.swing.JPanel;
 
 public class GameVisualizer extends JPanel implements PropertyChangeListener {
@@ -156,19 +157,28 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
                 java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
 
+        // Рисуем цели (без изменений)
         for (RobotModel robot : multiModel.getRobots()) {
-            int targetX = robot.getTargetPositionX();
-            int targetY = robot.getTargetPositionY();
-            drawTarget(g2d, targetX, targetY);
+            drawTarget(g2d, robot.getTargetPositionX(), robot.getTargetPositionY());
         }
 
+        // Рисуем роботов
         for (RobotModel robot : multiModel.getRobots()) {
             int robotX = (int) robot.getRobotPositionX();
             int robotY = (int) robot.getRobotPositionY();
 
-            drawRobot(g2d, robotX, robotY, robot.getRobotDirection(),
-                    getRobotColor(robot.getRobotId()),
-                    robot == selectedRobotForTarget);
+            boolean isSelected = (robot == selectedRobotForTarget);
+
+            // ПРОВЕРКА: если это загруженный робот
+            if (robot instanceof RobotModelWrapper) {
+                RobotModelWrapper wrapper = (RobotModelWrapper) robot;
+                RobotInstance instance = wrapper.getPluginInstance();
+                instance.draw(g2d, robotX, robotY, isSelected);
+            } else {
+                // Стандартный робот — старая отрисовка
+                drawRobot(g2d, robotX, robotY, robot.getRobotDirection(),
+                        getRobotColor(robot.getRobotId()), isSelected);
+            }
 
             drawRobotId(g2d, robotX, robotY, robot.getRobotId());
         }
@@ -238,17 +248,20 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g.setTransform(oldTransform);
     }
 
-    private void drawTarget(Graphics2D g, int x, int y) {
+    private void drawTarget(Graphics2D g, double x, double y) {
         AffineTransform old = g.getTransform();
         g.setTransform(new AffineTransform());
 
-        g.setColor(Color.GREEN);
-        fillOval(g, x, y, 10, 10);
-        g.setColor(Color.BLACK);
-        drawOval(g, x, y, 10, 10);
+        int ix = (int) Math.round(x);
+        int iy = (int) Math.round(y);
 
-        g.drawLine(x - 4, y, x + 4, y);
-        g.drawLine(x, y - 4, x, y + 4);
+        g.setColor(Color.GREEN);
+        fillOval(g, ix, iy, 10, 10);
+        g.setColor(Color.BLACK);
+        drawOval(g, ix, iy, 10, 10);
+
+        g.drawLine(ix - 4, iy, ix + 4, iy);
+        g.drawLine(ix, iy - 4, ix, iy + 4);
 
         g.setTransform(old);
     }

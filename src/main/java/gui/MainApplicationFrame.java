@@ -1,6 +1,8 @@
 package gui;
 
 import model.MultiRobotModel;
+import plugin.RobotPlugin;
+import plugin.RobotPluginManager;
 
 import java.awt.Dimension;
 import java.awt.Toolkit;
@@ -10,9 +12,11 @@ import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.List;
 import java.util.Properties;
 
 import javax.swing.JDesktopPane;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JInternalFrame;
 import javax.swing.JMenu;
@@ -33,6 +37,9 @@ public class MainApplicationFrame extends JFrame
     private LogWindow logWindow;
     private GameWindow gameWindow;
 
+    private static final String PLUGIN_CONFIG_FILE = System.getProperty("user.home") +
+            File.separator + ".robots_plugins.xml";
+
     public MainApplicationFrame() {
         configureMainFrame();
         createWindows();
@@ -41,6 +48,7 @@ public class MainApplicationFrame extends JFrame
 
         setupExitHandler();
         loadWindowPositions();
+        loadPluginConfiguration();
     }
 
     private void configureMainFrame() {
@@ -57,11 +65,16 @@ public class MainApplicationFrame extends JFrame
         gameWindow = createGameWindow();
         coordinatesWindow = createCoordinatesWindow();
 
-        addWindow(logWindow);
-        addWindow(gameWindow);
-        addWindow(coordinatesWindow);
+        desktopPane.add(logWindow);
+        desktopPane.add(gameWindow);
+        desktopPane.add(coordinatesWindow);
 
-        // Устанавливаем порядок слоёв окон
+        logWindow.setVisible(true);
+        gameWindow.setVisible(true);
+        coordinatesWindow.setVisible(true);
+
+        gameWindow.toFront();
+
         desktopPane.setComponentZOrder(logWindow, 2);
         desktopPane.setComponentZOrder(gameWindow, 1);
         desktopPane.setComponentZOrder(coordinatesWindow, 0);
@@ -96,12 +109,6 @@ public class MainApplicationFrame extends JFrame
         return coordinatesWindow;
     }
 
-    private void addWindow(JInternalFrame frame) {
-        desktopPane.add(frame);
-        frame.setVisible(true);
-        frame.getContentPane().setBackground(UIManager.getColor("desktop"));
-    }
-
     private void setupExitHandler() {
         addWindowListener(new WindowAdapter() {
             @Override
@@ -123,6 +130,10 @@ public class MainApplicationFrame extends JFrame
         JMenu fileMenu = new JMenu("Файл");
         fileMenu.setMnemonic(KeyEvent.VK_F);
 
+        JMenuItem loadRobotItem = new JMenuItem("Загрузить робота из JAR...", KeyEvent.VK_L);
+        loadRobotItem.addActionListener(e -> loadRobotFromJar());
+        fileMenu.add(loadRobotItem);
+
         JMenuItem showCoordinatesItem = new JMenuItem("Показать координаты", KeyEvent.VK_C);
         showCoordinatesItem.addActionListener(e -> {
             if (coordinatesWindow != null && !coordinatesWindow.isVisible()) {
@@ -133,12 +144,8 @@ public class MainApplicationFrame extends JFrame
 
         JMenuItem addRobotItem = new JMenuItem("Добавить робота", KeyEvent.VK_A);
         addRobotItem.addActionListener(e -> {
-            if (multiRobotModel.getRobotCount() < 2) {
-                multiRobotModel.addRobot();
-                Logger.debug("Добавлен второй робот");
-            } else {
-                Logger.debug("Максимум 2 робота уже создано");
-            }
+            multiRobotModel.addRobot();
+            Logger.debug("Добавлен робот");
         });
         fileMenu.add(addRobotItem);
 
@@ -187,6 +194,94 @@ public class MainApplicationFrame extends JFrame
         return testMenu;
     }
 
+    private void loadRobotFromJar() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Выберите JAR-файл с роботом");
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "JAR файлы (*.jar)", "jar"));
+
+        int result = fileChooser.showOpenDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File jarFile = fileChooser.getSelectedFile();
+        Logger.debug("Выбран файл: " + jarFile.getAbsolutePath());
+
+        new Thread(() -> {
+            try {
+                RobotPlugin plugin = RobotPluginManager.getInstance().loadRobotFromJar(jarFile);
+
+                SwingUtilities.invokeLater(() -> {
+                    multiRobotModel.addRobotFromPlugin(plugin);
+                    Logger.debug("Робот добавлен: " + plugin.getDisplayName());
+                    savePluginConfiguration();
+                });
+
+            } catch (Exception e) {
+                Logger.error("Ошибка загрузки плагина: " + e.getMessage());
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(this,
+                            "Ошибка загрузки:\n" + e.getMessage(),
+                            "Ошибка",
+                            JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
+    }
+
+    private void savePluginConfiguration() {
+        try {
+            Properties props = new Properties();
+            List<String> jarPaths = RobotPluginManager.getInstance().getLoadedJarPaths();
+
+            props.setProperty("plugins.count", String.valueOf(jarPaths.size()));
+            for (int i = 0; i < jarPaths.size(); i++) {
+                props.setProperty("plugin." + i, jarPaths.get(i));
+            }
+
+            try (FileOutputStream out = new FileOutputStream(PLUGIN_CONFIG_FILE)) {
+                props.storeToXML(out, "Loaded robot plugins");
+            }
+            Logger.debug("Конфигурация плагинов сохранена");
+        } catch (Exception e) {
+            Logger.error("Ошибка сохранения конфигурации: " + e.getMessage());
+        }
+    }
+
+    private void loadPluginConfiguration() {
+        File configFile = new File(PLUGIN_CONFIG_FILE);
+        if (!configFile.exists()) {
+            return;
+        }
+
+        try {
+            Properties props = new Properties();
+            try (FileInputStream in = new FileInputStream(configFile)) {
+                props.loadFromXML(in);
+            }
+
+            int count = Integer.parseInt(props.getProperty("plugins.count", "0"));
+
+            for (int i = 0; i < count; i++) {
+                String jarPath = props.getProperty("plugin." + i);
+                if (jarPath != null && !jarPath.isEmpty()) {
+                    File jarFile = new File(jarPath);
+                    if (jarFile.exists()) {
+                        try {
+                            RobotPluginManager.getInstance().loadRobotFromJar(jarFile);
+                            Logger.debug("Загружен плагин: " + jarPath);
+                        } catch (Exception e) {
+                            Logger.error("Не удалось загрузить плагин: " + jarPath);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Logger.error("Ошибка загрузки конфигурации: " + e.getMessage());
+        }
+    }
+
     private void exitApplication() {
         int result = JOptionPane.showOptionDialog(
                 this,
@@ -201,6 +296,7 @@ public class MainApplicationFrame extends JFrame
 
         if (result == 0) {
             saveWindowPositions();
+            savePluginConfiguration();
             System.exit(0);
         }
     }

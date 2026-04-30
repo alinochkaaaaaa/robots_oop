@@ -30,8 +30,8 @@ java {
 }
 
 application {
-    // Define the main class for the application.
     mainClass = 'gui.RobotsProgram'
+    applicationDefaultJvmArgs = ["-Dsun.java2d.uiScale=1.0"]
 }
 
 tasks.named('test') {
