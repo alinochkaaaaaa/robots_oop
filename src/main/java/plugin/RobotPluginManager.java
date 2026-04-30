@@ -25,7 +25,6 @@ import java.util.jar.Manifest;
  */
 public class RobotPluginManager {
 
-    // ========== Singleton ==========
     private static final RobotPluginManager INSTANCE = new RobotPluginManager();
 
     public static RobotPluginManager getInstance() {
@@ -36,8 +35,6 @@ public class RobotPluginManager {
         // Приватный конструктор для синглтона
         loadPluginsFromCache();
     }
-
-    // ========== Поля ==========
 
     /** Кэш загруженных классов (слабые ссылки — позволяют выгружать плагины) */
     private final Map<String, WeakReference<Class<? extends RobotPlugin>>> pluginClassCache
@@ -52,8 +49,6 @@ public class RobotPluginManager {
 
     /** ClassLoader для загрузки классов из JAR */
     private URLClassLoader currentClassLoader;
-
-    // ========== Основные методы ==========
 
     /**
      * Загрузить робота из JAR-файла.
@@ -147,7 +142,7 @@ public class RobotPluginManager {
         String jarPath = jarUrl.getPath();
 
         // Открываем JAR и сканируем все entry
-        try (java.util.jar.JarFile jarFile = new java.util.jar.JarFile(new File(jarPath))) {
+        try (JarFile jarFile = new JarFile(new File(jarPath))) {
 
             java.util.Enumeration<java.util.jar.JarEntry> entries = jarFile.entries();
 
@@ -225,7 +220,6 @@ public class RobotPluginManager {
 
     /**
      * Получить список путей к загруженным JAR.
-     * Для сериализации (используется Разработчиком C).
      */
     public List<String> getLoadedJarPaths() {
         return new ArrayList<>(loadedJarPaths);
@@ -258,9 +252,8 @@ public class RobotPluginManager {
      * Восстанавливает плагины из сохранённой конфигурации.
      */
     private void loadPluginsFromCache() {
-        // Здесь будет загрузка из XML-файла
-        // Реализуется после того, как Разработчик C сделает сериализацию
-        // Пока просто заглушка
+        // Здесь будет загрузка из XML-файла.
+        // Реализуется после того, как будет сделана сериализация
         Logger.debug("Загрузка плагинов из кэша... (пока пусто)");
     }
 

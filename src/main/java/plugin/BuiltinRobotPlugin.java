@@ -64,7 +64,7 @@ public class BuiltinRobotPlugin implements RobotPlugin {
 
         @Override
         public void draw(java.awt.Graphics2D g, int x, int y, boolean isSelected) {
-            // Пусто — отрисовку делает GameVisualizer
+            // отрисовку делает GameVisualizer
         }
 
         @Override

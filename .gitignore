@@ -11,3 +11,5 @@ eclipse.bat
 
 # Ignore Gradle build output directory
 build
+*.class
+out/

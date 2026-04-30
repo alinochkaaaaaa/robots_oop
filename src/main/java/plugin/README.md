@@ -82,6 +82,8 @@ public class RobotPluginManager {
 ## Сборка JAR
 
 ```
-javac -cp "../../src/main/java" TestRobotPlugin.java
-jar cf test_robot.jar TestRobotPlugin.class
+cd C:\robots_oop
+del simple_robot.jar
+javac -cp "src/main/java" SimpleRobotPlugin.java
+& "C:\Program Files\Java\jdk-21\New Folder\bin\jar.exe" cvf simple_robot.jar SimpleRobotPlugin.class SimpleRobot.class
 ```
