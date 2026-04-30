@@ -246,17 +246,20 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g.setTransform(oldTransform);
     }
 
-    private void drawTarget(Graphics2D g, int x, int y) {
+    private void drawTarget(Graphics2D g, double x, double y) {
         AffineTransform old = g.getTransform();
         g.setTransform(new AffineTransform());
 
-        g.setColor(Color.GREEN);
-        fillOval(g, x, y, 10, 10);
-        g.setColor(Color.BLACK);
-        drawOval(g, x, y, 10, 10);
+        int ix = (int) Math.round(x);
+        int iy = (int) Math.round(y);
 
-        g.drawLine(x - 4, y, x + 4, y);
-        g.drawLine(x, y - 4, x, y + 4);
+        g.setColor(Color.GREEN);
+        fillOval(g, ix, iy, 10, 10);
+        g.setColor(Color.BLACK);
+        drawOval(g, ix, iy, 10, 10);
+
+        g.drawLine(ix - 4, iy, ix + 4, iy);
+        g.drawLine(ix, iy - 4, ix, iy + 4);
 
         g.setTransform(old);
     }

@@ -94,20 +94,9 @@ public class MultiRobotModel {
     public RobotModel addRobotFromPlugin(RobotPlugin plugin, double startX, double startY) {
         RobotInstance instance = plugin.createInstance(startX, startY);
         RobotModelWrapper wrapper = new RobotModelWrapper(instance, plugin.getRobotTypeId(), nextRobotId);
-
-        wrapper.addPropertyChangeListener(evt -> {
-            if (!isUpdating) {
-                isUpdating = true;
-                pcs.firePropertyChange("robot_" + wrapper.getRobotId(), null, wrapper);
-                pcs.firePropertyChange("robots", null, robots);
-                isUpdating = false;
-            }
-        });
-
         robots.add(wrapper);
         robotPluginTypes.put(wrapper.getRobotId(), plugin.getRobotTypeId());
         nextRobotId++;
-
         pcs.firePropertyChange("robots", null, robots);
         return wrapper;
     }

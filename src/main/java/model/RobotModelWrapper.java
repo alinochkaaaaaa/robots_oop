@@ -37,25 +37,25 @@ public class RobotModelWrapper extends RobotModel {
     }
 
     @Override
-    public void setTargetPosition(int x, int y) {
-        this.cachedTargetX = x;   // int автоматически преобразуется в double
+    public void setTargetPosition(double x, double y) {
+        this.cachedTargetX = x;
         this.cachedTargetY = y;
         pcs.firePropertyChange("target", null, this);
     }
 
     @Override
-    public int getTargetPositionX() {
-        return (int) Math.round(cachedTargetX);   // округление при возврате
+    public double getTargetPositionX() {
+        return cachedTargetX;
     }
 
     @Override
-    public int getTargetPositionY() {
-        return (int) Math.round(cachedTargetY);
+    public double getTargetPositionY() {
+        return cachedTargetY;
     }
 
     @Override
     public void updateModel() {
-        instance.update(cachedTargetX, cachedTargetY);  // теперь передаём double
+        instance.update(cachedTargetX, cachedTargetY);
 
         if (!isUpdatingFromInstance) {
             isUpdatingFromInstance = true;

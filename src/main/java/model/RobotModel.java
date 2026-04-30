@@ -7,8 +7,8 @@ public class RobotModel {
     private volatile double robotPositionX = 100;
     private volatile double robotPositionY = 100;
     private volatile double robotDirection = 0;
-    private volatile int targetPositionX = 150;
-    private volatile int targetPositionY = 100;
+    private volatile double targetPositionX = 150;
+    private volatile double targetPositionY = 100;
     private int robotId = 0;
 
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
@@ -25,7 +25,7 @@ public class RobotModel {
         return "Робот " + robotId;
     }
 
-    public void setTargetPosition(int x, int y) {
+    public void setTargetPosition(double x, double y) {   // ← int → double
         this.targetPositionX = x;
         this.targetPositionY = y;
         pcs.firePropertyChange("target", null, this);
@@ -33,7 +33,6 @@ public class RobotModel {
 
     public void updateModel() {
         double distance = distanceToTarget();
-
 
         if (distance < 1.0) {
             robotPositionX = targetPositionX;
@@ -45,7 +44,6 @@ public class RobotModel {
         double angleToTarget = angleToTarget();
         double angleDiff = angleToTarget - robotDirection;
 
-        // нормализация угла
         while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
@@ -84,11 +82,11 @@ public class RobotModel {
         return robotDirection;
     }
 
-    public int getTargetPositionX() {
+    public double getTargetPositionX() {
         return targetPositionX;
     }
 
-    public int getTargetPositionY() {
+    public double getTargetPositionY() {
         return targetPositionY;
     }
 
@@ -99,6 +97,7 @@ public class RobotModel {
     public void removePropertyChangeListener(PropertyChangeListener listener) {
         pcs.removePropertyChangeListener(listener);
     }
+
     public void setPosition(double x, double y) {
         this.robotPositionX = x;
         this.robotPositionY = y;
