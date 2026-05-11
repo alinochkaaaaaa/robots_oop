@@ -21,4 +21,8 @@ public class GameWindow extends JInternalFrame {
         visualizer.setToolTipText("Клик - установка цели для выбранного робота." +
                 "Для выбора робота нажмите цифру 1 или 2.");
     }
+
+    public GameVisualizer getGameVisualizer() {
+        return visualizer;
+    }
 }

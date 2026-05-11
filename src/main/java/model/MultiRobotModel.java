@@ -2,7 +2,6 @@ package model;
 
 import plugin.RobotInstance;
 import plugin.RobotPlugin;
-import plugin.BuiltinRobotPlugin;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -73,7 +72,7 @@ public class MultiRobotModel {
         }
     }
 
-    public void addPropertyChangeListener(PropertyChangeListener listener) {
+    public void addPropertyChangeListener(String robots, PropertyChangeListener listener) {
         pcs.addPropertyChangeListener(listener);
     }
 

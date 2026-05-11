@@ -4,18 +4,16 @@ import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Построение маршрута из контура.
- */
 public class PathBuilder {
-
 
     public static List<Waypoint> buildPathFromContour(List<Point> contour, double stepSize) {
         if (contour == null || contour.size() < 3) {
             return new ArrayList<>();
         }
 
-        List<Point> simplified = simplifyContour(contour, 2.0);
+        // Сначала сильно упрощаем контур для уменьшения количества точек
+        List<Point> simplified = simplifyContour(contour, 8.0); // epsilon для большего упрощения
+        System.out.println("После упрощения контура: " + simplified.size() + " точек");
 
         List<Waypoint> path = new ArrayList<>();
 
@@ -30,34 +28,58 @@ public class PathBuilder {
 
             double distance = Math.hypot(toX - fromX, toY - fromY);
 
-            if (distance < stepSize) {
-                path.add(new Waypoint(toX, toY));
+            // Увеличиваем шаг для уменьшения количества точек маршрута
+            double actualStepSize = Math.max(stepSize, 30.0); // Минимум 30 пикселей между точками
+
+            if (distance < actualStepSize) {
+                path.add(new Waypoint(toX, toY, 15.0)); // Увеличен допуск
                 continue;
             }
 
-            int steps = (int) Math.ceil(distance / stepSize);
+            int steps = (int) Math.ceil(distance / actualStepSize);
+            // Ограничиваем максимальное количество шагов
+            steps = Math.min(steps, 10);
+
             for (int s = 0; s <= steps; s++) {
                 double t = (double) s / steps;
                 double ix = fromX + (toX - fromX) * t;
                 double iy = fromY + (toY - fromY) * t;
-                path.add(new Waypoint(ix, iy));
+                path.add(new Waypoint(ix, iy, 15.0));
             }
         }
 
+        System.out.println("Построен маршрут из " + path.size() + " точек");
         return path;
     }
 
     public static List<Point> simplifyContour(List<Point> points, double epsilon) {
         if (points == null || points.size() < 3) {
-            return new ArrayList<>(points == null ? List.of() : points);
+            return points == null ? new ArrayList<>() : new ArrayList<>(points);
         }
+
+        List<Point> result = new ArrayList<>();
+        simplifyRDP(points, 0, points.size() - 1, epsilon, result);
+
+        // Удаляем дубликаты
+        List<Point> unique = new ArrayList<>();
+        for (Point p : result) {
+            if (unique.isEmpty() || (unique.get(unique.size() - 1).x != p.x || unique.get(unique.size() - 1).y != p.y)) {
+                unique.add(p);
+            }
+        }
+
+        return unique;
+    }
+
+    private static void simplifyRDP(List<Point> points, int startIdx, int endIdx, double epsilon, List<Point> result) {
+        if (startIdx >= endIdx) return;
 
         double maxDist = 0;
         int index = -1;
-        Point start = points.get(0);
-        Point end = points.get(points.size() - 1);
+        Point start = points.get(startIdx);
+        Point end = points.get(endIdx);
 
-        for (int i = 1; i < points.size() - 1; i++) {
+        for (int i = startIdx + 1; i < endIdx; i++) {
             double dist = perpendicularDistance(points.get(i), start, end);
             if (dist > maxDist) {
                 maxDist = dist;
@@ -65,23 +87,18 @@ public class PathBuilder {
             }
         }
 
-        List<Point> result = new ArrayList<>();
         if (maxDist > epsilon && index != -1) {
-            List<Point> left = simplifyContour(points.subList(0, index + 1), epsilon);
-            List<Point> right = simplifyContour(points.subList(index, points.size()), epsilon);
-            result.addAll(left);
-            result.remove(result.size() - 1);
-            result.addAll(right);
+            simplifyRDP(points, startIdx, index, epsilon, result);
+            result.add(points.get(index));
+            simplifyRDP(points, index, endIdx, epsilon, result);
         } else {
-            result.add(start);
+            if (result.isEmpty()) {
+                result.add(start);
+            }
             result.add(end);
         }
-        return result;
     }
 
-    /**
-     * Расстояние от точки p до отрезка (a, b).
-     */
     private static double perpendicularDistance(Point p, Point a, Point b) {
         double abX = b.x - a.x;
         double abY = b.y - a.y;

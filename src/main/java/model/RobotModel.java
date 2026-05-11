@@ -67,7 +67,10 @@ public class RobotModel {
      */
     private void updateTracing() {
         if (!isTracingMode || currentPath == null || currentPathIndex >= currentPath.size()) {
-            if (isTracingMode) stopTracing();
+            if (isTracingMode) {
+                System.out.println("Трассировка завершена");
+                stopTracing();
+            }
             return;
         }
 
@@ -76,9 +79,16 @@ public class RobotModel {
         double dy = target.getY() - robotPositionY;
         double distance = Math.hypot(dx, dy);
 
-        if (distance < target.getTolerance()) {
+        // Увеличиваем допуск для лучшего прохождения маршрута
+        double tolerance = target.getTolerance();
+
+        if (distance < tolerance) {
             currentPathIndex++;
+            if (currentPathIndex % 50 == 0) { // Логируем прогресс каждые 50 точек
+                System.out.println("Трассировка: пройдено " + currentPathIndex + " из " + currentPath.size() + " точек");
+            }
             if (currentPathIndex >= currentPath.size()) {
+                System.out.println("Трассировка завершена! Пройдено " + currentPath.size() + " точек");
                 stopTracing();
             }
             return;
@@ -90,11 +100,13 @@ public class RobotModel {
         while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-        double maxTurn = Math.toRadians(10);
+        // Увеличиваем скорость поворота для лучшего следования по маршруту
+        double maxTurn = Math.toRadians(15); // Увеличено с 10 до 15 градусов
         double turn = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
         robotDirection += turn;
 
-        double step = Math.min(5, distance);
+        // Увеличиваем скорость движения
+        double step = Math.min(8.0, distance); // Увеличено с 5 до 8
         robotPositionX += step * Math.cos(robotDirection);
         robotPositionY += step * Math.sin(robotDirection);
 

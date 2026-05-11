@@ -36,7 +36,7 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
     };
 
     private volatile boolean needsRepaint = false;
-    private final TrailManager trailManager = new TrailManager(1000);
+    private final TrailManager trailManager = new TrailManager(2000); // Увеличил размер следа
     private boolean showTrail = true;
 
     private static Timer initTimer() {
@@ -45,22 +45,31 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
 
     public GameVisualizer(MultiRobotModel multiModel) {
         this.multiModel = multiModel;
-        this.multiModel.addPropertyChangeListener(this);
+
+        // Подписываемся на существующих роботов
+        for (RobotModel robot : multiModel.getRobots()) {
+            robot.addPropertyChangeListener(this);
+        }
+
+        // Слушаем добавление новых роботов
+        multiModel.addPropertyChangeListener("robots", evt -> {
+            for (RobotModel robot : multiModel.getRobots()) {
+                // Добавляем слушателя только если его ещё нет
+                robot.removePropertyChangeListener(this);
+                robot.addPropertyChangeListener(this);
+            }
+            // Обновляем выбранного робота если нужно
+            if (selectedRobotForTarget == null && !multiModel.getRobots().isEmpty()) {
+                selectedRobotForTarget = multiModel.getRobots().get(0);
+                Logger.debug("Выбран робот 1 по умолчанию");
+            }
+            repaint();
+        });
 
         if (!multiModel.getRobots().isEmpty()) {
             selectedRobotForTarget = multiModel.getRobots().get(0);
             Logger.debug("Выбран робот 1 по умолчанию");
         }
-
-        this.multiModel.addPropertyChangeListener(evt -> {
-            if ("position".equals(evt.getPropertyName()) || "tracing".equals(evt.getPropertyName())) {
-                if (evt.getSource() instanceof RobotModel) {
-                    RobotModel robot = (RobotModel) evt.getSource();
-                    trailManager.addPoint(robot.getRobotPositionX(), robot.getRobotPositionY());
-                    needsRepaint = true;
-                }
-            }
-        });
 
         m_timer.schedule(new TimerTask() {
             @Override
@@ -91,7 +100,6 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
             }
         });
 
-        // Обработка клавиатуры для смены робота (только цифры 1 и 2)
         setFocusable(true);
         addKeyListener(new KeyAdapter() {
             @Override
@@ -104,9 +112,6 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         setBackground(Color.WHITE);
     }
 
-    /**
-     * Обработка нажатий клавиш для смены выбранного робота.
-     */
     private void handleKeyPress(KeyEvent e) {
         int keyCode = e.getKeyCode();
         int robotCount = multiModel.getRobotCount();
@@ -148,6 +153,14 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
 
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
+        String propertyName = evt.getPropertyName();
+
+        // Добавляем точку в след при изменении позиции
+        if ("position".equals(propertyName) && evt.getSource() instanceof RobotModel) {
+            RobotModel robot = (RobotModel) evt.getSource();
+            trailManager.addPoint(robot.getRobotPositionX(), robot.getRobotPositionY());
+        }
+
         needsRepaint = true;
     }
 
@@ -156,10 +169,10 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
                 _ -> colors[nextColorIndex++ % colors.length]);
     }
 
-
     public void clearTrail() {
         trailManager.clear();
         repaint();
+        Logger.debug("След очищен");
     }
 
     public void setShowTrail(boolean show) {
@@ -167,15 +180,14 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         repaint();
     }
 
-
-    /**
-     * Запустить трассировку для выбранного робота по маршруту.
-     */
     public void startTracingOnSelectedRobot(List<Waypoint> path) {
         if (selectedRobotForTarget != null && path != null && !path.isEmpty()) {
+            // Очищаем след перед новой трассировкой
+            clearTrail();
             selectedRobotForTarget.stopTracing();
             selectedRobotForTarget.startTracing(path);
-            Logger.debug("Запущена трассировка для робота " + selectedRobotForTarget.getRobotId());
+            Logger.debug("Запущена трассировка для робота " + selectedRobotForTarget.getRobotId() +
+                    " с маршрутом из " + path.size() + " точек");
         } else {
             Logger.debug("Не удалось запустить трассировку: нет выбранного робота или пустой путь");
         }
@@ -188,9 +200,6 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         }
     }
 
-    /**
-     * Проверить, находится ли выбранный робот в режиме трассировки.
-     */
     public boolean isSelectedRobotTracing() {
         return selectedRobotForTarget != null && selectedRobotForTarget.isTracingMode();
     }
@@ -203,6 +212,7 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
                 java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
 
+        // Рисуем след ДО рисования роботов, чтобы след был под ними
         if (showTrail) {
             trailManager.draw(g2d);
         }
@@ -260,7 +270,8 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         g.drawString(hint3, 10, getHeight() - 15);
 
         if (isSelectedRobotTracing()) {
-            g.setColor(new Color(0, 100, 200));
+            g.setColor(new Color(0, 100, 200, 200));
+            g.setFont(g.getFont().deriveFont(12f));
             g.drawString("РЕЖИМ ТРАССИРОВКИ АКТИВЕН", 10, getHeight() - 60);
         }
 

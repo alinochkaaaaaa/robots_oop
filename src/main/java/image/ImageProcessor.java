@@ -9,31 +9,136 @@ import java.util.Queue;
 
 public class ImageProcessor {
 
-    // ========================
-    // ГЛАВНЫЙ ПУБЛИЧНЫЙ МЕТОД
-    // ========================
-
     public static List<Point> findLargestObjectContour(BufferedImage image) {
         if (image == null) return new ArrayList<>();
 
-        // Ограничиваем размер изображения (чтобы не было OutOfMemory)
         image = scaleImageIfNeeded(image, 800, 800);
 
         BufferedImage gray = toGrayscale(image);
         int threshold = otsuThreshold(gray);
         BufferedImage binary = toBinary(gray, threshold);
+
+        System.out.println("Threshold: " + threshold);
+
         binary = ensureWhiteObject(binary);
 
-        ComponentInfo largest = findLargestComponent(binary);
-        if (largest == null || largest.pixels.isEmpty()) return new ArrayList<>();
+        // Находим все белые пиксели (линии)
+        List<Point> allWhitePixels = new ArrayList<>();
+        for (int y = 0; y < binary.getHeight(); y++) {
+            for (int x = 0; x < binary.getWidth(); x++) {
+                if (isWhite(binary, x, y)) {
+                    allWhitePixels.add(new Point(x, y));
+                }
+            }
+        }
 
-        List<Point> contour = extractContour(binary, largest);
-        return simplifyContour(contour, 2.0);
+        if (allWhitePixels.isEmpty()) {
+            System.out.println("Нет белых пикселей");
+            return new ArrayList<>();
+        }
+
+        System.out.println("Всего белых пикселей: " + allWhitePixels.size());
+
+        // Для тонкой линии используем алгоритм поиска пути
+        List<Point> contour = extractLineContour(binary, allWhitePixels);
+        System.out.println("Извлечено точек контура: " + contour.size());
+
+        // Упрощаем контур для сглаживания
+        if (contour.size() > 10) {
+            contour = simplifyContour(contour, 5.0);
+            System.out.println("После упрощения: " + contour.size() + " точек");
+        }
+
+        return contour;
     }
 
     /**
-     * Масштабирование слишком больших изображений
+     * Алгоритм поиска контура для тонкой линии (толщиной 1 пиксель)
      */
+    private static List<Point> extractLineContour(BufferedImage binary, List<Point> whitePixels) {
+        if (whitePixels.size() < 3) return whitePixels;
+
+        // Находим точку с минимальным x (самую левую)
+        Point start = whitePixels.get(0);
+        for (Point p : whitePixels) {
+            if (p.x < start.x || (p.x == start.x && p.y < start.y)) {
+                start = p;
+            }
+        }
+
+        List<Point> contour = new ArrayList<>();
+        Point current = start;
+        Point previous = null;
+
+        int maxIterations = whitePixels.size() * 2;
+        int iterations = 0;
+
+        do {
+            contour.add(new Point(current.x, current.y));
+            iterations++;
+
+            if (iterations > maxIterations) {
+                System.out.println("Превышен лимит итераций");
+                break;
+            }
+
+            // Ищем следующую точку (8 направлений)
+            Point next = findNextPoint(binary, current, previous);
+            if (next == null) break;
+
+            previous = current;
+            current = next;
+
+        } while ((current.x != start.x || current.y != start.y) && iterations < maxIterations);
+
+        // Замыкаем контур
+        if (contour.size() > 0) {
+            Point first = contour.get(0);
+            Point last = contour.get(contour.size() - 1);
+            if (first.x != last.x || first.y != last.y) {
+                contour.add(first);
+            }
+        }
+
+        return contour;
+    }
+
+    /**
+     * Находит следующую точку в контуре, исключая предыдущую
+     */
+    private static Point findNextPoint(BufferedImage binary, Point current, Point previous) {
+        // 8 направлений
+        int[] dx = {1, 1, 0, -1, -1, -1, 0, 1};
+        int[] dy = {0, 1, 1, 1, 0, -1, -1, -1};
+
+        Point bestPoint = null;
+        int bestPriority = -1;
+
+        for (int i = 0; i < 8; i++) {
+            int nx = current.x + dx[i];
+            int ny = current.y + dy[i];
+
+            if (nx < 0 || nx >= binary.getWidth() || ny < 0 || ny >= binary.getHeight()) {
+                continue;
+            }
+
+            if (previous != null && nx == previous.x && ny == previous.y) {
+                continue; // Не возвращаемся назад
+            }
+
+            if (isWhite(binary, nx, ny)) {
+                // Приоритет: сначала продолжаем в том же направлении
+                int priority = 8 - i;
+                if (bestPoint == null || priority > bestPriority) {
+                    bestPoint = new Point(nx, ny);
+                    bestPriority = priority;
+                }
+            }
+        }
+
+        return bestPoint;
+    }
+
     private static BufferedImage scaleImageIfNeeded(BufferedImage image, int maxWidth, int maxHeight) {
         int w = image.getWidth();
         int h = image.getHeight();
@@ -46,8 +151,9 @@ public class ImageProcessor {
         int newW = (int) (w * scale);
         int newH = (int) (h * scale);
 
-        BufferedImage scaled = new BufferedImage(newW, newH, image.getType());
+        BufferedImage scaled = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.drawImage(image, 0, 0, newW, newH, null);
         g.dispose();
 
@@ -93,6 +199,7 @@ public class ImageProcessor {
         }
         int total = binary.getWidth() * binary.getHeight();
         if (whiteCount < total / 2) {
+            System.out.println("Инвертируем изображение (объект тёмный)");
             return invert(binary);
         }
         return binary;
@@ -141,135 +248,26 @@ public class ImageProcessor {
         return threshold;
     }
 
-    private static class ComponentInfo {
-        List<Point> pixels = new ArrayList<>();
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-        int getArea() { return pixels.size(); }
-    }
-
-    private static ComponentInfo findLargestComponent(BufferedImage binary) {
-        int width = binary.getWidth();
-        int height = binary.getHeight();
-        boolean[][] visited = new boolean[height][width];
-
-        ComponentInfo largest = null;
-        int maxArea = 0;
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (isWhite(binary, x, y) && !visited[y][x]) {
-                    ComponentInfo component = floodFill(binary, visited, x, y);
-                    if (component.getArea() > maxArea && component.getArea() > 100) {
-                        maxArea = component.getArea();
-                        largest = component;
-                    }
-                }
-            }
-        }
-        return largest;
-    }
-
-    private static ComponentInfo floodFill(BufferedImage binary, boolean[][] visited, int startX, int startY) {
-        int width = binary.getWidth();
-        int height = binary.getHeight();
-        ComponentInfo component = new ComponentInfo();
-        Queue<Point> queue = new LinkedList<>();
-        queue.add(new Point(startX, startY));
-        visited[startY][startX] = true;
-
-        int[] dx = {1, -1, 0, 0};
-        int[] dy = {0, 0, 1, -1};
-
-        while (!queue.isEmpty()) {
-            Point p = queue.poll();
-            component.pixels.add(p);
-            component.minX = Math.min(component.minX, p.x);
-            component.minY = Math.min(component.minY, p.y);
-            component.maxX = Math.max(component.maxX, p.x);
-            component.maxY = Math.max(component.maxY, p.y);
-
-            for (int i = 0; i < 4; i++) {
-                int nx = p.x + dx[i];
-                int ny = p.y + dy[i];
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height && !visited[ny][nx] && isWhite(binary, nx, ny)) {
-                    visited[ny][nx] = true;
-                    queue.add(new Point(nx, ny));
-                }
-            }
-        }
-        return component;
-    }
-
-    /**
-     * ИСПРАВЛЕННЫЙ метод извлечения контура
-     */
-    private static List<Point> extractContour(BufferedImage binary, ComponentInfo component) {
-        List<Point> contour = new ArrayList<>();
-
-        // Находим стартовую точку
-        Point start = null;
-        for (Point p : component.pixels) {
-            if (start == null || p.x < start.x || (p.x == start.x && p.y < start.y)) {
-                start = p;
-            }
-        }
-        if (start == null) return contour;
-
-        int[] dx = {1, 1, 0, -1, -1, -1, 0, 1};
-        int[] dy = {0, 1, 1, 1, 0, -1, -1, -1};
-
-        Point current = start;
-        int direction = 0;
-
-        // Защита от зацикливания
-        int maxPoints = component.pixels.size() * 2;
-        int pointCount = 0;
-
-        do {
-            contour.add(new Point(current.x, current.y));
-            pointCount++;
-
-            if (pointCount > maxPoints) {
-                System.err.println("Warning: contour extraction exceeded limit");
-                break;
-            }
-
-            boolean found = false;
-            for (int i = 0; i < 8; i++) {
-                int newDir = (direction + 7 - i) % 8;
-                int nx = current.x + dx[newDir];
-                int ny = current.y + dy[newDir];
-
-                if (nx >= 0 && nx < binary.getWidth() && ny >= 0 && ny < binary.getHeight()) {
-                    if (isWhite(binary, nx, ny)) {
-                        current = new Point(nx, ny);
-                        direction = newDir;
-                        found = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!found) break;
-            if (current.x == start.x && current.y == start.y) break;
-
-        } while (pointCount < maxPoints);
-
-        return contour;
-    }
-
     public static List<Point> simplifyContour(List<Point> points, double epsilon) {
         if (points == null || points.size() < 3) {
-            return new ArrayList<>(points == null ? List.of() : points);
+            return points == null ? new ArrayList<>() : new ArrayList<>(points);
         }
+
+        List<Point> result = new ArrayList<>();
+        simplifyRDP(points, 0, points.size() - 1, epsilon, result);
+
+        return result;
+    }
+
+    private static void simplifyRDP(List<Point> points, int startIdx, int endIdx, double epsilon, List<Point> result) {
+        if (startIdx >= endIdx) return;
 
         double maxDist = 0;
         int index = -1;
-        Point start = points.get(0);
-        Point end = points.get(points.size() - 1);
+        Point start = points.get(startIdx);
+        Point end = points.get(endIdx);
 
-        for (int i = 1; i < points.size() - 1; i++) {
+        for (int i = startIdx + 1; i < endIdx; i++) {
             double dist = perpendicularDistance(points.get(i), start, end);
             if (dist > maxDist) {
                 maxDist = dist;
@@ -277,18 +275,16 @@ public class ImageProcessor {
             }
         }
 
-        List<Point> result = new ArrayList<>();
         if (maxDist > epsilon && index != -1) {
-            List<Point> left = simplifyContour(points.subList(0, index + 1), epsilon);
-            List<Point> right = simplifyContour(points.subList(index, points.size()), epsilon);
-            result.addAll(left);
-            result.remove(result.size() - 1);
-            result.addAll(right);
+            simplifyRDP(points, startIdx, index, epsilon, result);
+            result.add(points.get(index));
+            simplifyRDP(points, index, endIdx, epsilon, result);
         } else {
-            result.add(start);
+            if (result.isEmpty()) {
+                result.add(start);
+            }
             result.add(end);
         }
-        return result;
     }
 
     private static double perpendicularDistance(Point p, Point a, Point b) {
@@ -337,10 +333,15 @@ public class ImageProcessor {
 
         double scale = Math.min((double) targetWidth / width, (double) targetHeight / height);
 
+        int centerX = offsetX + targetWidth / 2;
+        int centerY = offsetY + targetHeight / 2;
+        int objectCenterX = (minX + maxX) / 2;
+        int objectCenterY = (minY + maxY) / 2;
+
         List<Point> normalized = new ArrayList<>();
         for (Point p : contour) {
-            int newX = offsetX + (int) ((p.x - minX) * scale);
-            int newY = offsetY + (int) ((p.y - minY) * scale);
+            int newX = centerX + (int) ((p.x - objectCenterX) * scale);
+            int newY = centerY + (int) ((p.y - objectCenterY) * scale);
             normalized.add(new Point(newX, newY));
         }
         return normalized;
