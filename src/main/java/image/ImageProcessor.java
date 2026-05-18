@@ -3,49 +3,32 @@ package image;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
 
 public class ImageProcessor {
 
-    public static List<Point> findLargestObjectContour(BufferedImage image) {
+    public List<Point> findLargestObjectContour(BufferedImage image) {
         if (image == null) return new ArrayList<>();
 
+        // Масштабируем изображение
         image = scaleImageIfNeeded(image, 800, 800);
 
         BufferedImage gray = toGrayscale(image);
         int threshold = otsuThreshold(gray);
         BufferedImage binary = toBinary(gray, threshold);
 
-        System.out.println("Threshold: " + threshold);
-
         binary = ensureWhiteObject(binary);
 
-        // Находим все белые пиксели (линии)
-        List<Point> allWhitePixels = new ArrayList<>();
-        for (int y = 0; y < binary.getHeight(); y++) {
-            for (int x = 0; x < binary.getWidth(); x++) {
-                if (isWhite(binary, x, y)) {
-                    allWhitePixels.add(new Point(x, y));
-                }
-            }
-        }
+        System.out.println("Threshold: " + threshold);
 
-        if (allWhitePixels.isEmpty()) {
-            System.out.println("Нет белых пикселей");
-            return new ArrayList<>();
-        }
+        // Основной поиск контура
+        List<Point> contour = traceOuterBoundary(binary);
 
-        System.out.println("Всего белых пикселей: " + allWhitePixels.size());
+        System.out.println("Найдено точек контура: " + contour.size());
 
-        // Для тонкой линии используем алгоритм поиска пути
-        List<Point> contour = extractLineContour(binary, allWhitePixels);
-        System.out.println("Извлечено точек контура: " + contour.size());
-
-        // Упрощаем контур для сглаживания
-        if (contour.size() > 10) {
-            contour = simplifyContour(contour, 5.0);
+        // Упрощаем контур
+        if (contour.size() > 35) {
+            contour = simplifyContour(contour, 6.0);
             System.out.println("После упрощения: " + contour.size() + " точек");
         }
 
@@ -53,99 +36,84 @@ public class ImageProcessor {
     }
 
     /**
-     * Алгоритм поиска контура для тонкой линии (толщиной 1 пиксель)
+     * Трассировка внешней границы
      */
-    private static List<Point> extractLineContour(BufferedImage binary, List<Point> whitePixels) {
-        if (whitePixels.size() < 3) return whitePixels;
+    private List<Point> traceOuterBoundary(BufferedImage binary) {
+        int width = binary.getWidth();
+        int height = binary.getHeight();
 
-        // Находим точку с минимальным x (самую левую)
-        Point start = whitePixels.get(0);
-        for (Point p : whitePixels) {
-            if (p.x < start.x || (p.x == start.x && p.y < start.y)) {
-                start = p;
-            }
-        }
+        Point start = findStartPoint(binary);
+        if (start == null) return new ArrayList<>();
 
         List<Point> contour = new ArrayList<>();
         Point current = start;
-        Point previous = null;
+        Point prev = new Point(start.x - 1, start.y);
 
-        int maxIterations = whitePixels.size() * 2;
-        int iterations = 0;
+        int maxSteps = width * height * 4;
+        int steps = 0;
 
         do {
             contour.add(new Point(current.x, current.y));
-            iterations++;
+            steps++;
 
-            if (iterations > maxIterations) {
-                System.out.println("Превышен лимит итераций");
-                break;
-            }
-
-            // Ищем следующую точку (8 направлений)
-            Point next = findNextPoint(binary, current, previous);
+            Point next = getNextBoundaryPoint(binary, current, prev);
             if (next == null) break;
 
-            previous = current;
+            prev = current;
             current = next;
 
-        } while ((current.x != start.x || current.y != start.y) && iterations < maxIterations);
+        } while (!current.equals(start) && steps < maxSteps);
 
-        // Замыкаем контур
-        if (contour.size() > 0) {
-            Point first = contour.get(0);
-            Point last = contour.get(contour.size() - 1);
-            if (first.x != last.x || first.y != last.y) {
-                contour.add(first);
-            }
+        if (contour.size() > 5) {
+            contour.add(contour.get(0)); // замыкаем контур
         }
 
         return contour;
     }
 
-    /**
-     * Находит следующую точку в контуре, исключая предыдущую
-     */
-    private static Point findNextPoint(BufferedImage binary, Point current, Point previous) {
-        // 8 направлений
-        int[] dx = {1, 1, 0, -1, -1, -1, 0, 1};
-        int[] dy = {0, 1, 1, 1, 0, -1, -1, -1};
-
-        Point bestPoint = null;
-        int bestPriority = -1;
-
-        for (int i = 0; i < 8; i++) {
-            int nx = current.x + dx[i];
-            int ny = current.y + dy[i];
-
-            if (nx < 0 || nx >= binary.getWidth() || ny < 0 || ny >= binary.getHeight()) {
-                continue;
-            }
-
-            if (previous != null && nx == previous.x && ny == previous.y) {
-                continue; // Не возвращаемся назад
-            }
-
-            if (isWhite(binary, nx, ny)) {
-                // Приоритет: сначала продолжаем в том же направлении
-                int priority = 8 - i;
-                if (bestPoint == null || priority > bestPriority) {
-                    bestPoint = new Point(nx, ny);
-                    bestPriority = priority;
+    private Point findStartPoint(BufferedImage binary) {
+        for (int y = 0; y < binary.getHeight(); y++) {
+            for (int x = 0; x < binary.getWidth(); x++) {
+                if (isWhite(binary, x, y)) {
+                    return new Point(x, y);
                 }
             }
         }
-
-        return bestPoint;
+        return null;
     }
+
+    private Point getNextBoundaryPoint(BufferedImage binary, Point curr, Point prev) {
+        int[] dx = {1, 1, 0, -1, -1, -1, 0, 1};
+        int[] dy = {0, 1, 1, 1, 0, -1, -1, -1};
+
+        int startDir = 0;
+        for (int i = 0; i < 8; i++) {
+            if (curr.x + dx[i] == prev.x && curr.y + dy[i] == prev.y) {
+                startDir = (i + 1) % 8;
+                break;
+            }
+        }
+
+        for (int i = 0; i < 8; i++) {
+            int dir = (startDir + i) % 8;
+            int nx = curr.x + dx[dir];
+            int ny = curr.y + dy[dir];
+
+            if (nx >= 0 && nx < binary.getWidth() && ny >= 0 && ny < binary.getHeight()) {
+                if (isWhite(binary, nx, ny)) {
+                    return new Point(nx, ny);
+                }
+            }
+        }
+        return null;
+    }
+
+    // ====================== Вспомогательные методы ======================
 
     private static BufferedImage scaleImageIfNeeded(BufferedImage image, int maxWidth, int maxHeight) {
         int w = image.getWidth();
         int h = image.getHeight();
-
-        if (w <= maxWidth && h <= maxHeight) {
-            return image;
-        }
+        if (w <= maxWidth && h <= maxHeight) return image;
 
         double scale = Math.min((double) maxWidth / w, (double) maxHeight / h);
         int newW = (int) (w * scale);
@@ -156,7 +124,6 @@ public class ImageProcessor {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.drawImage(image, 0, 0, newW, newH, null);
         g.dispose();
-
         return scaled;
     }
 
@@ -197,23 +164,22 @@ public class ImageProcessor {
                 if (isWhite(binary, x, y)) whiteCount++;
             }
         }
-        int total = binary.getWidth() * binary.getHeight();
-        if (whiteCount < total / 2) {
-            System.out.println("Инвертируем изображение (объект тёмный)");
+        if (whiteCount < binary.getWidth() * binary.getHeight() / 2) {
+            System.out.println("Инвертируем изображение (объект был тёмным)");
             return invert(binary);
         }
         return binary;
     }
 
     private static boolean isWhite(BufferedImage image, int x, int y) {
-        return (image.getRGB(x, y) & 0xFF) > 128;
+        return (image.getRGB(x, y) & 0xFF) > 110;
     }
 
     public static int otsuThreshold(BufferedImage grayImage) {
         int width = grayImage.getWidth();
         int height = grayImage.getHeight();
-
         int[] histogram = new int[256];
+
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 histogram[grayImage.getRGB(x, y) & 0xFF]++;
@@ -248,14 +214,13 @@ public class ImageProcessor {
         return threshold;
     }
 
-    public static List<Point> simplifyContour(List<Point> points, double epsilon) {
+    public List<Point> simplifyContour(List<Point> points, double epsilon) {
         if (points == null || points.size() < 3) {
             return points == null ? new ArrayList<>() : new ArrayList<>(points);
         }
 
         List<Point> result = new ArrayList<>();
         simplifyRDP(points, 0, points.size() - 1, epsilon, result);
-
         return result;
     }
 
@@ -280,9 +245,7 @@ public class ImageProcessor {
             result.add(points.get(index));
             simplifyRDP(points, index, endIdx, epsilon, result);
         } else {
-            if (result.isEmpty()) {
-                result.add(start);
-            }
+            if (result.isEmpty()) result.add(start);
             result.add(end);
         }
     }

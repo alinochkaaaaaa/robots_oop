@@ -11,8 +11,7 @@ public class PathBuilder {
             return new ArrayList<>();
         }
 
-        // Сначала сильно упрощаем контур для уменьшения количества точек
-        List<Point> simplified = simplifyContour(contour, 8.0); // epsilon для большего упрощения
+        List<Point> simplified = simplifyContour(contour, 5.0); // было 8.0
         System.out.println("После упрощения контура: " + simplified.size() + " точек");
 
         List<Waypoint> path = new ArrayList<>();
@@ -21,35 +20,37 @@ public class PathBuilder {
             Point current = simplified.get(i);
             Point next = simplified.get((i + 1) % simplified.size());
 
-            double fromX = current.x;
-            double fromY = current.y;
-            double toX = next.x;
-            double toY = next.y;
+            double distance = Math.hypot(next.x - current.x, next.y - current.y);
+            double actualStepSize = Math.max(stepSize, 20.0);
 
-            double distance = Math.hypot(toX - fromX, toY - fromY);
-
-            // Увеличиваем шаг для уменьшения количества точек маршрута
-            double actualStepSize = Math.max(stepSize, 30.0); // Минимум 30 пикселей между точками
-
-            if (distance < actualStepSize) {
-                path.add(new Waypoint(toX, toY, 15.0)); // Увеличен допуск
+            if (distance < actualStepSize * 1.5) {
+                path.add(new Waypoint(next.x, next.y, 19.0));
                 continue;
             }
 
-            int steps = (int) Math.ceil(distance / actualStepSize);
-            // Ограничиваем максимальное количество шагов
-            steps = Math.min(steps, 10);
+            int steps = Math.max(1, (int) Math.ceil(distance / actualStepSize));
+            steps = Math.min(steps, 8);
 
             for (int s = 0; s <= steps; s++) {
                 double t = (double) s / steps;
-                double ix = fromX + (toX - fromX) * t;
-                double iy = fromY + (toY - fromY) * t;
-                path.add(new Waypoint(ix, iy, 15.0));
+                double ix = current.x + (next.x - current.x) * t;
+                double iy = current.y + (next.y - current.y) * t;
+                path.add(new Waypoint(ix, iy, 12.0));
             }
         }
 
-        System.out.println("Построен маршрут из " + path.size() + " точек");
-        return path;
+        // Убираем дубликаты подряд
+        List<Waypoint> uniquePath = new ArrayList<>();
+        for (Waypoint wp : path) {
+            if (uniquePath.isEmpty() ||
+                    Math.hypot(uniquePath.get(uniquePath.size()-1).x() - wp.x(),
+                            uniquePath.get(uniquePath.size()-1).y() - wp.y()) > 5) {
+                uniquePath.add(wp);
+            }
+        }
+
+        System.out.println("Построен маршрут из " + uniquePath.size() + " точек");
+        return uniquePath;
     }
 
     public static List<Point> simplifyContour(List<Point> points, double epsilon) {
@@ -60,14 +61,13 @@ public class PathBuilder {
         List<Point> result = new ArrayList<>();
         simplifyRDP(points, 0, points.size() - 1, epsilon, result);
 
-        // Удаляем дубликаты
         List<Point> unique = new ArrayList<>();
         for (Point p : result) {
-            if (unique.isEmpty() || (unique.get(unique.size() - 1).x != p.x || unique.get(unique.size() - 1).y != p.y)) {
+            if (unique.isEmpty() ||
+                    (unique.get(unique.size() - 1).x != p.x || unique.get(unique.size() - 1).y != p.y)) {
                 unique.add(p);
             }
         }
-
         return unique;
     }
 
@@ -92,9 +92,7 @@ public class PathBuilder {
             result.add(points.get(index));
             simplifyRDP(points, index, endIdx, epsilon, result);
         } else {
-            if (result.isEmpty()) {
-                result.add(start);
-            }
+            if (result.isEmpty()) result.add(start);
             result.add(end);
         }
     }

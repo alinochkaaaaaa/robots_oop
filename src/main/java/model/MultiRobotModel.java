@@ -71,15 +71,15 @@ public class MultiRobotModel {
             robot.updateModel();
         }
     }
+    // ========== PropertyChangeSupport ==========
 
-    public void addPropertyChangeListener(String robots, PropertyChangeListener listener) {
+    public void addPropertyChangeListener(PropertyChangeListener listener) {
         pcs.addPropertyChangeListener(listener);
     }
 
     public void removePropertyChangeListener(PropertyChangeListener listener) {
         pcs.removePropertyChangeListener(listener);
     }
-
     /**
      * Добавить робота из плагина (случайная позиция)
      */

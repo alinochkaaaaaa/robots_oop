@@ -52,7 +52,7 @@ public class GameVisualizer extends JPanel implements PropertyChangeListener {
         }
 
         // Слушаем добавление новых роботов
-        multiModel.addPropertyChangeListener("robots", evt -> {
+        multiModel.addPropertyChangeListener( evt -> {
             for (RobotModel robot : multiModel.getRobots()) {
                 // Добавляем слушателя только если его ещё нет
                 robot.removePropertyChangeListener(this);

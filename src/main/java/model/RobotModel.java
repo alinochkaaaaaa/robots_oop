@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class RobotModel {
-    private volatile double robotPositionX = 100;
+    private volatile double robotPositionX = 150;
     private volatile double robotPositionY = 100;
     private volatile double robotDirection = 0;
-    private volatile double targetPositionX = 150;
+    private volatile double targetPositionX = 200;
     private volatile double targetPositionY = 100;
     private int robotId = 0;
 
@@ -32,7 +32,6 @@ public class RobotModel {
     }
 
     public void setTargetPosition(double x, double y) {
-        // Если был в режиме трассировки — выходим из него
         if (isTracingMode) {
             stopTracing();
         }
@@ -41,15 +40,19 @@ public class RobotModel {
         pcs.firePropertyChange("target", null, this);
     }
 
-
-    /**
-     * Запустить режим трассировки по маршруту.
-     */
     public void startTracing(List<Waypoint> path) {
         if (path == null || path.isEmpty()) return;
         this.currentPath = new ArrayList<>(path);
         this.currentPathIndex = 0;
         this.isTracingMode = true;
+
+        // Сразу ставим первую цель
+        if (!path.isEmpty()) {
+            Waypoint first = path.get(0);
+            this.targetPositionX = first.x();
+            this.targetPositionY = first.y();
+        }
+        System.out.println("Трассировка запущена, точек: " + path.size());
     }
 
     public void stopTracing() {
@@ -62,9 +65,6 @@ public class RobotModel {
         return isTracingMode;
     }
 
-    /**
-     * Обновление движения в режиме трассировки.
-     */
     private void updateTracing() {
         if (!isTracingMode || currentPath == null || currentPathIndex >= currentPath.size()) {
             if (isTracingMode) {
@@ -75,20 +75,19 @@ public class RobotModel {
         }
 
         Waypoint target = currentPath.get(currentPathIndex);
-        double dx = target.getX() - robotPositionX;
-        double dy = target.getY() - robotPositionY;
+        double dx = target.x() - robotPositionX;
+        double dy = target.y() - robotPositionY;
         double distance = Math.hypot(dx, dy);
 
-        // Увеличиваем допуск для лучшего прохождения маршрута
-        double tolerance = target.getTolerance();
+        double tolerance = target.tolerance() * 2.0;  // Увеличенный допуск
 
         if (distance < tolerance) {
             currentPathIndex++;
-            if (currentPathIndex % 50 == 0) { // Логируем прогресс каждые 50 точек
-                System.out.println("Трассировка: пройдено " + currentPathIndex + " из " + currentPath.size() + " точек");
+            if (currentPathIndex % 25 == 0 || currentPathIndex > currentPath.size() - 5) {
+                System.out.println("Перешли к точке " + currentPathIndex + "/" + currentPath.size());
             }
             if (currentPathIndex >= currentPath.size()) {
-                System.out.println("Трассировка завершена! Пройдено " + currentPath.size() + " точек");
+                System.out.println("Трассировка завершена!");
                 stopTracing();
             }
             return;
@@ -100,30 +99,24 @@ public class RobotModel {
         while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-        // Увеличиваем скорость поворота для лучшего следования по маршруту
-        double maxTurn = Math.toRadians(15); // Увеличено с 10 до 15 градусов
+        double maxTurn = Math.toRadians(15);
         double turn = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
         robotDirection += turn;
 
-        // Увеличиваем скорость движения
-        double step = Math.min(8.0, distance); // Увеличено с 5 до 8
+        double step = Math.min(7.0, distance * 0.65);
         robotPositionX += step * Math.cos(robotDirection);
         robotPositionY += step * Math.sin(robotDirection);
 
         pcs.firePropertyChange("position", null, this);
-        pcs.firePropertyChange("tracing", null, this);
     }
 
-
     public void updateModel() {
-        // Если в режиме трассировки — двигаемся по маршруту
         if (isTracingMode) {
             updateTracing();
             return;
         }
 
         double distance = distanceToTarget();
-
         if (distance < 1.0) {
             robotPositionX = targetPositionX;
             robotPositionY = targetPositionY;
@@ -151,7 +144,7 @@ public class RobotModel {
     private double distanceToTarget() {
         double dx = targetPositionX - robotPositionX;
         double dy = targetPositionY - robotPositionY;
-        return Math.sqrt(dx * dx + dy * dy);
+        return Math.hypot(dx, dy);
     }
 
     private double angleToTarget() {
@@ -160,25 +153,11 @@ public class RobotModel {
         return Math.atan2(dy, dx);
     }
 
-    public double getRobotPositionX() {
-        return robotPositionX;
-    }
-
-    public double getRobotPositionY() {
-        return robotPositionY;
-    }
-
-    public double getRobotDirection() {
-        return robotDirection;
-    }
-
-    public double getTargetPositionX() {
-        return targetPositionX;
-    }
-
-    public double getTargetPositionY() {
-        return targetPositionY;
-    }
+    public double getRobotPositionX() { return robotPositionX; }
+    public double getRobotPositionY() { return robotPositionY; }
+    public double getRobotDirection() { return robotDirection; }
+    public double getTargetPositionX() { return targetPositionX; }
+    public double getTargetPositionY() { return targetPositionY; }
 
     public void addPropertyChangeListener(PropertyChangeListener listener) {
         pcs.addPropertyChangeListener(listener);

@@ -23,7 +23,7 @@ public class RobotCoordinatesWindow extends JInternalFrame implements PropertyCh
         mainPanel = new JPanel();
         mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 
-        multiModel.addPropertyChangeListener("robots", this);
+        multiModel.addPropertyChangeListener(this);
 
         JScrollPane scrollPane = new JScrollPane(mainPanel);
         getContentPane().add(scrollPane);
