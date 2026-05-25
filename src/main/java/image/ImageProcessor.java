@@ -17,42 +17,75 @@ public class ImageProcessor {
         int threshold = otsuThreshold(gray);
         BufferedImage binary = toBinary(gray, threshold);
 
-        binary = ensureWhiteObject(binary);
-
+        // Убрали ensureWhiteObject — работаем с бинарным изображением напрямую
         System.out.println("Threshold: " + threshold);
 
-        // Основной поиск контура
-        List<Point> contour = traceOuterBoundary(binary);
+        // Находим все контуры
+        List<List<Point>> allContours = findAllContours(binary);
+        if (allContours.isEmpty()) return new ArrayList<>();
 
-        System.out.println("Найдено точек контура: " + contour.size());
+        // Ищем контур наибольшей площадью
+        List<Point> largestContour = null;
+        double maxArea = 0;
 
-        // Упрощаем контур
-        if (contour.size() > 35) {
-            contour = simplifyContour(contour, 6.0);
-            System.out.println("После упрощения: " + contour.size() + " точек");
+        for (List<Point> contour : allContours) {
+            if (contour.size() < 3) continue;
+            double area = calculateArea(contour);
+            if (area > maxArea) {
+                maxArea = area;
+                largestContour = contour;
+            }
         }
 
-        return contour;
+        if (largestContour == null) return new ArrayList<>();
+
+        System.out.println("Найден самый большой объект: " + largestContour.size() + " точек, площадь: " + maxArea);
+
+        // Упрощаем контур
+        if (largestContour.size() > 35) {
+            largestContour = simplifyContour(largestContour, 6.0);
+            System.out.println("После упрощения: " + largestContour.size() + " точек");
+        }
+
+        return largestContour;
     }
 
     /**
      * Трассировка внешней границы
      */
-    private List<Point> traceOuterBoundary(BufferedImage binary) {
+    private List<List<Point>> findAllContours(BufferedImage binary) {
         int width = binary.getWidth();
         int height = binary.getHeight();
+        boolean[][] visited = new boolean[height][width];
+        List<List<Point>> allContours = new ArrayList<>();
 
-        Point start = findStartPoint(binary);
-        if (start == null) return new ArrayList<>();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // Ищем чёрные пиксели (объект) — инвертируем условие
+                if (!isWhite(binary, x, y) && !visited[y][x]) {
+                    List<Point> contour = traceBoundary(binary, x, y, visited);
+                    if (!contour.isEmpty()) {
+                        allContours.add(contour);
+                    }
+                }
+            }
+        }
+        return allContours;
+    }
 
+    private List<Point> traceBoundary(BufferedImage binary, int startX, int startY, boolean[][] visited) {
         List<Point> contour = new ArrayList<>();
-        Point current = start;
-        Point prev = new Point(start.x - 1, start.y);
+        Point current = new Point(startX, startY);
+        Point prev = new Point(startX - 1, startY);
 
-        int maxSteps = width * height * 4;
+        int maxSteps = binary.getWidth() * binary.getHeight() * 4;
         int steps = 0;
 
         do {
+            if (current.y >= 0 && current.y < visited.length &&
+                current.x >= 0 && current.x < visited[0].length) {
+                visited[current.y][current.x] = true;
+            }
             contour.add(new Point(current.x, current.y));
             steps++;
 
@@ -62,24 +95,14 @@ public class ImageProcessor {
             prev = current;
             current = next;
 
-        } while (!current.equals(start) && steps < maxSteps);
+        } while (!current.equals(new Point(startX, startY)) && steps < maxSteps);
 
-        if (contour.size() > 5) {
-            contour.add(contour.get(0)); // замыкаем контур
+        // Замыкаем контур
+        if (!contour.isEmpty() && contour.size() > 5) {
+            contour.add(new Point(startX, startY));
         }
 
         return contour;
-    }
-
-    private Point findStartPoint(BufferedImage binary) {
-        for (int y = 0; y < binary.getHeight(); y++) {
-            for (int x = 0; x < binary.getWidth(); x++) {
-                if (isWhite(binary, x, y)) {
-                    return new Point(x, y);
-                }
-            }
-        }
-        return null;
     }
 
     private Point getNextBoundaryPoint(BufferedImage binary, Point curr, Point prev) {
@@ -100,7 +123,7 @@ public class ImageProcessor {
             int ny = curr.y + dy[dir];
 
             if (nx >= 0 && nx < binary.getWidth() && ny >= 0 && ny < binary.getHeight()) {
-                if (isWhite(binary, nx, ny)) {
+                if (!isWhite(binary, nx, ny)) {  // Ищем чёрные пиксели
                     return new Point(nx, ny);
                 }
             }
@@ -158,20 +181,13 @@ public class ImageProcessor {
     }
 
     private static BufferedImage ensureWhiteObject(BufferedImage binary) {
-        int whiteCount = 0;
-        for (int y = 0; y < binary.getHeight(); y++) {
-            for (int x = 0; x < binary.getWidth(); x++) {
-                if (isWhite(binary, x, y)) whiteCount++;
-            }
-        }
-        if (whiteCount < binary.getWidth() * binary.getHeight() / 2) {
-            System.out.println("Инвертируем изображение (объект был тёмным)");
-            return invert(binary);
-        }
+        // Просто возвращаем бинарное изображение как есть
+        // Контур будет искаться по белым пикселям
         return binary;
     }
 
     private static boolean isWhite(BufferedImage image, int x, int y) {
+        // Считаем белым, если яркость > 110
         return (image.getRGB(x, y) & 0xFF) > 110;
     }
 
@@ -296,8 +312,8 @@ public class ImageProcessor {
 
         double scale = Math.min((double) targetWidth / width, (double) targetHeight / height);
 
-        int centerX = offsetX + targetWidth / 2;
-        int centerY = offsetY + targetHeight / 2;
+        int centerX = offsetX;
+        int centerY = offsetY;
         int objectCenterX = (minX + maxX) / 2;
         int objectCenterY = (minY + maxY) / 2;
 

@@ -20,6 +20,9 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.12.1'
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // JSON для сохранения маршрута
+    implementation 'com.google.code.gson:gson:2.10.1'
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
@@ -32,6 +35,18 @@ java {
 application {
     mainClass = 'gui.RobotsProgram'
     applicationDefaultJvmArgs = ["-Dsun.java2d.uiScale=1.0"]
+}
+
+tasks.register('runDiagnostic', JavaExec) {
+    mainClass = 'diagnostic.DiagnosticImageLoader'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = projectDir
+}
+
+tasks.register('generateStar', JavaExec) {
+    mainClass = 'diagnostic.GenerateStarImage'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = projectDir
 }
 
 tasks.named('test') {

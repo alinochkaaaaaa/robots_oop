@@ -264,6 +264,7 @@ public class MainApplicationFrame extends JFrame {
         JMenuBar menuBar = new JMenuBar();
         menuBar.add(createFileMenu());
         menuBar.add(createTraceMenu());
+        menuBar.add(createSaveLoadMenu());
         menuBar.add(createLookAndFeelMenu());
         menuBar.add(createTestMenu());
         return menuBar;
@@ -379,6 +380,21 @@ public class MainApplicationFrame extends JFrame {
         testMenu.add(addLogMessageItem);
 
         return testMenu;
+    }
+
+    private JMenu createSaveLoadMenu() {
+        JMenu menu = new JMenu("Маршрут");
+        menu.setMnemonic(KeyEvent.VK_M);
+
+        JMenuItem saveItem = new JMenuItem("Сохранить маршрут", KeyEvent.VK_S);
+        saveItem.addActionListener(e -> tracingController.onSavePath());
+        menu.add(saveItem);
+
+        JMenuItem loadItem = new JMenuItem("Загрузить маршрут", KeyEvent.VK_L);
+        loadItem.addActionListener(e -> tracingController.onLoadPath());
+        menu.add(loadItem);
+
+        return menu;
     }
 
     private void loadRobotFromJar() {

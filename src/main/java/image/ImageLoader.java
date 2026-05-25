@@ -1,6 +1,7 @@
 package image;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +32,19 @@ public class ImageLoader {
         if (image == null) {
             throw new IOException("Не удалось загрузить изображение. " +
                     "Поддерживаемые форматы: PNG, JPG, JPEG, BMP, GIF");
+        }
+
+        // заменяем прозрачный фон на белый
+        if (image.getTransparency() != BufferedImage.OPAQUE) {
+            BufferedImage withBackground = new BufferedImage(
+                    image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = withBackground.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, image.getWidth(), image.getHeight());
+            g.drawImage(image, 0, 0, null);
+            g.dispose();
+            image = withBackground;
+            System.out.println("Прозрачный фон заменён на белый");
         }
 
         return image;
