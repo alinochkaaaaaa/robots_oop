@@ -2,7 +2,6 @@ package model;
 
 import plugin.RobotInstance;
 import plugin.RobotPlugin;
-import plugin.BuiltinRobotPlugin;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -72,6 +71,7 @@ public class MultiRobotModel {
             robot.updateModel();
         }
     }
+    // ========== PropertyChangeSupport ==========
 
     public void addPropertyChangeListener(PropertyChangeListener listener) {
         pcs.addPropertyChangeListener(listener);
@@ -80,7 +80,6 @@ public class MultiRobotModel {
     public void removePropertyChangeListener(PropertyChangeListener listener) {
         pcs.removePropertyChangeListener(listener);
     }
-
     /**
      * Добавить робота из плагина (случайная позиция)
      */
