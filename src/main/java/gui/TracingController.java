@@ -10,8 +10,15 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 
 public class TracingController {
 
@@ -23,6 +30,9 @@ public class TracingController {
     private List<Point> lastFoundContour;
     private List<Waypoint> lastBuiltPath;
     private String lastLoadedFileName;
+
+    private static final String SAVES_DIR = "saves";
+    private static final String PATH_FILE = SAVES_DIR + "/last_path.json";
 
     public TracingController(MainApplicationFrame mainFrame, MultiRobotModel multiRobotModel, GameWindow gameWindow) {
         this.mainFrame = mainFrame;
@@ -66,8 +76,24 @@ public class TracingController {
             int fieldWidth = visualizer.getWidth() > 0 ? visualizer.getWidth() : 600;
             int fieldHeight = visualizer.getHeight() > 0 ? visualizer.getHeight() : 500;
 
+            // размеры контура
+            int minX = lastFoundContour.stream().mapToInt(p -> p.x).min().orElse(0);
+            int maxX = lastFoundContour.stream().mapToInt(p -> p.x).max().orElse(0);
+            int minY = lastFoundContour.stream().mapToInt(p -> p.y).min().orElse(0);
+            int maxY = lastFoundContour.stream().mapToInt(p -> p.y).max().orElse(0);
+            int contourWidth = maxX - minX;
+            int contourHeight = maxY - minY;
+            System.out.println("Размеры контура: " + contourWidth + "x" + contourHeight + " пикселей");
+
+            // целевые размеры до 80% поля
+            int targetWidth = (int) (fieldWidth * 0.8);
+            int targetHeight = (int) (fieldHeight * 0.8);
+            int offsetX = fieldWidth / 2;
+            int offsetY = fieldHeight / 2;
+
+
             List<Point> normalizedContour = ImageProcessor.normalizeContour(
-                    lastFoundContour, fieldWidth - 100, fieldHeight - 150, 50, 60);
+                    lastFoundContour, targetWidth, targetHeight, offsetX, offsetY);
 
             PathBuilder pathBuilder = new PathBuilder();
             lastBuiltPath = pathBuilder.buildPathFromContour(normalizedContour, 40.0);
@@ -168,6 +194,60 @@ public class TracingController {
 
     public List<Point> getLastFoundContour() {
         return lastFoundContour;
+    }
+
+    public void onSavePath() {
+        if (lastBuiltPath == null || lastBuiltPath.isEmpty()) {
+            JOptionPane.showMessageDialog(mainFrame, "Нет маршрута для сохранения.", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            File savesDir = new File(SAVES_DIR);
+            if (!savesDir.exists()) {
+                savesDir.mkdir();
+            }
+
+            File file = new File(PATH_FILE);
+            FileWriter writer = new FileWriter(file);
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            gson.toJson(lastBuiltPath, writer);
+            writer.close();
+
+            mainFrame.setStatusMessage("Маршрут сохранён: " + file.getAbsolutePath());
+            JOptionPane.showMessageDialog(mainFrame, "Маршрут успешно сохранён в:\n" + file.getAbsolutePath(), "Сохранено", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            mainFrame.setStatusMessage("Ошибка сохранения: " + e.getMessage());
+            JOptionPane.showMessageDialog(mainFrame, "Ошибка сохранения:\n" + e.getMessage(), "Ошибка", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public void onLoadPath() {
+        try {
+            File file = new File(PATH_FILE);
+            if (!file.exists()) {
+                JOptionPane.showMessageDialog(mainFrame, "Файл маршрута не найден.", "Ошибка", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            FileReader reader = new FileReader(file);
+            Gson gson = new Gson();
+            java.lang.reflect.Type type = new TypeToken<List<Waypoint>>(){}.getType();
+            List<Waypoint> path = gson.fromJson(reader, type);
+            reader.close();
+
+            if (path == null || path.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Маршрут пуст.", "Ошибка", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            this.lastBuiltPath = new ArrayList<>(path);
+            mainFrame.setStatusMessage("Маршрут загружен: " + path.size() + " точек");
+            JOptionPane.showMessageDialog(mainFrame, "Маршрут успешно загружен из:\n" + file.getAbsolutePath() + "\nТочек: " + path.size(), "Загружено", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            mainFrame.setStatusMessage("Ошибка загрузки: " + e.getMessage());
+            JOptionPane.showMessageDialog(mainFrame, "Ошибка загрузки:\n" + e.getMessage(), "Ошибка", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     public List<Waypoint> getLastBuiltPath() {
